@@ -1,0 +1,136 @@
+import pandas as pd
+import streamlit as st
+
+# ضبط إعدادات الصفحة
+st.set_page_config(
+    page_title="إدارة مخزون معمل البرادات", page_icon="❄️", layout="centered"
+)
+
+# عنوان التطبيق
+st.title("❄️ نظام إدارة مخزون معمل البرادات")
+st.write("---")
+
+# 1. قائمة المكونات (BOM)
+BOM = {
+    "براد حنفية واحدة": {
+        "الحنفية": 1,
+        "البانكة": 1,
+        "الماطور": 1,
+        "التوماتيك": 1,
+        "الطواف": 1,
+        "الراديتر": 1,
+        "زواية القاعدة": 4,
+        "المنيوم القاعدة 1.35m": 1,
+        "الجكنة": 1,
+        "واشر حديد": 1,
+        "واشر بلاستك": 1,
+        "زبانة": 1,
+        "كبلري 1.7m": 1,
+        "كويل": 1,
+        "بوري ربع 1.5m": 1,
+        "طبقة وربع بليت": 1.25,
+    },
+    "براد حنفيتين": {
+        "الحنفية": 2,
+        "البانكة": 1,
+        "الماطور": 1,
+        "التوماتيك": 1,
+        "الطواف": 1,
+        "الراديتر": 1,
+        "زواية القاعدة": 4,
+        "المنيوم القاعدة 1.35m": 1,
+        "الجكنة": 2,
+        "واشر حديد": 2,
+        "واشر بلاستك": 2,
+        "زبانة": 2,
+        "كبلري 1.7m": 1,
+        "كويل": 1,
+        "بوري ربع 1.5m": 1,
+        "طبقة وربع بليت": 1.25,
+    },
+}
+
+# 2. إعداد المخزون في جلسة الاستخدام (Session State)
+if "inventory" not in st.session_state:
+    st.session_state.inventory = {
+        "الحنفية": 100,
+        "البانكة": 50,
+        "الماطور": 50,
+        "التوماتيك": 50,
+        "الطواف": 50,
+        "الراديتر": 50,
+        "زواية القاعدة": 200,
+        "المنيوم القاعدة 1.35m": 50,
+        "الجكنة": 100,
+        "واشر حديد": 100,
+        "واشر بلاستك": 100,
+        "زبانة": 100,
+        "كبلري 1.7m": 50,
+        "كويل": 50,
+        "بوري ربع 1.5m": 50,
+        "طبقة وربع بليت": 50.0,
+    }
+
+# تبويب للتحكم
+tab1, tab2, tab3 = st.tabs(
+    ["🏭 تسجيل إنتاج جديد", "➕ إضافة مخزون", "📊 حالة المخزون الحالية"]
+)
+
+# --- تبويب الإنتاج ---
+with tab1:
+    st.header("تسجيل عملية إنتاج براد")
+    model = st.selectbox(
+        "اختر نوع البراد المصنوع:",
+        ["براد حنفية واحدة", "براد حنفيتين"],
+    )
+    count = st.number_input(
+        "عدد البرادات المصنعة:", min_value=1, value=1, step=1
+    )
+
+    if st.button("🚀 خصم المواد وتأكيد الإنتاج", type="primary"):
+        required_bom = BOM[model]
+        missing_items = []
+
+        # فحص التوفر
+        for item, qty in required_bom.items():
+            needed = qty * count
+            available = st.session_state.inventory.get(item, 0)
+            if available < needed:
+                missing_items.append(
+                    f"- **{item}**: المطلوب ({needed})، المتوفر حالياً ({available})"
+                )
+
+        if missing_items:
+            st.error("❌ لا يوجد مخزون كافٍ لإتمام العملية!")
+            for m in missing_items:
+                st.write(m)
+        else:
+            # الخصم
+            for item, qty in required_bom.items():
+                st.session_state.inventory[item] -= qty * count
+            st.success(f"✅ تم تسجيل إنتاج ({count}) {model} وخصم المواد بنجاح!")
+
+# --- تبويب إضافة المخزون ---
+with tab2:
+    st.header("إضافة مواد خام جديدة للمخزن")
+    item_to_add = st.selectbox(
+        "اختر المادة:", list(st.session_state.inventory.keys())
+    )
+    qty_to_add = st.number_input(
+        "الكمية المضافة:", min_value=0.1, value=10.0, step=1.0
+    )
+
+    if st.button("➕ إضافة للمخزن"):
+        st.session_state.inventory[item_to_add] += qty_to_add
+        st.success(
+            f"✅ تمت إضافة {qty_to_add} إلى [{item_to_add}] بنجاح!"
+        )
+
+# --- تبويب عرض المخزون ---
+with tab3:
+    st.header("عرض حالة المخزن")
+    df = pd.DataFrame(
+        list(st.session_state.inventory.items()),
+        columns=["اسم المادة الخام", "الكمية المتوفرة"],
+    )
+    st.dataframe(df, use_container_width=True)
