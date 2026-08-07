@@ -10,28 +10,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# تحسين مظهر الواجهة باستخدام CSS بسيط
-st.markdown(
-    """
-    <style>
-    .main {
-        padding: 1rem;
-    }
-    .stButton>button {
-        border-radius: 8px;
-        font-weight: bold;
-    }
-    .stMetric {
-        background-color: #f8f9fa;
-        padding: 10px;
-        border-radius: 10px;
-        border-right: 5px solid #007bff;
-    }
-    </style>
-""",
-    unsafe_allow_html=True,
-)
-
 # 2. نظام تسجيل الدخول
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -110,28 +88,52 @@ if "bom" not in st.session_state:
         },
     }
 
-# 4. الرأس والإحصائيات السريعة
+# 4. الرأس والعنوان الرئيسي
 st.title("❄️ نظام إدارة وتتبع مخزون البرادات")
 
-# عرض بطاقات إحصائية في الأعلى
-col_stat1, col_stat2, col_stat3 = st.columns(3)
+# 5. حساب الإحصائيات
 total_items = len(st.session_state.inventory)
 zero_items = sum(
     1 for qty in st.session_state.inventory.values() if qty <= 0
 )
 
+# عرض بطاقات الإحصائيات بتصميم أنيق ومحسّن
+col_stat1, col_stat2, col_stat3 = st.columns([2, 2, 1])
+
 with col_stat1:
-    st.metric(label="إجمالي أصل المواد", value=f"{total_items} مادة")
+    st.markdown(
+        f"""
+        <div style="background-color: #1e293b; padding: 15px; border-radius: 10px; border-right: 5px solid #3b82f6; text-align: right;">
+            <span style="color: #94a3b8; font-size: 14px;">📦 إجمالي أصل المواد</span>
+            <h2 style="color: #ffffff; margin: 5px 0 0 0; font-size: 26px;">{total_items} <span style="font-size: 16px;">مادة مسجلة</span></h2>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 with col_stat2:
-    st.metric(label="المواد المنتهية (0)", value=f"{zero_items} مادة")
+    border_color = "#ef4444" if zero_items > 0 else "#22c55e"
+    st.markdown(
+        f"""
+        <div style="background-color: #1e293b; padding: 15px; border-radius: 10px; border-right: 5px solid {border_color}; text-align: right;">
+            <span style="color: #94a3b8; font-size: 14px;">⚠️ مواد منتهية (الرصيد 0)</span>
+            <h2 style="color: #ffffff; margin: 5px 0 0 0; font-size: 26px;">{zero_items} <span style="font-size: 16px;">مادة محتاجة للتزويد</span></h2>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 with col_stat3:
-    if st.button("🚪 تسجيل الخروج"):
+    st.write("")  # مسافة لموازنة المحاذاة العمودية
+    if st.button(
+        "🚪 تسجيل الخروج", use_container_width=True, type="secondary"
+    ):
         st.session_state.authenticated = False
         st.rerun()
 
 st.write("---")
 
-# 5. التبويبات الرئيسية
+# 6. التبويبات الرئيسية
 tabs = st.tabs(
     [
         "🏭 تسجيل إنتاج",
@@ -182,7 +184,7 @@ with tabs[0]:
                 )
                 st.rerun()
 
-# --- 2. إدارة وتعديل المخزون (مع زر التصفير) ---
+# --- 2. إدارة وتعديل المخزون ---
 with tabs[1]:
     st.header("عرض وتعديل كميات المخزون الحالية")
 
@@ -211,11 +213,10 @@ with tabs[1]:
             st.success("✅ تم تحديث بيانات المخزون بنجاح!")
             st.rerun()
 
-    # قسم تصفير المخزون مع التحذير
     with col_btn2:
         with st.popover("⚠️ تصفير جميع المواد في المخزن"):
             st.warning(
-                "هل أنت أصلًا متأكد؟ هذا الإجراء سيجعل جميع كميات المواد مساوية لـ (0)!"
+                "هل أنت متأكد؟ هذا الإجراء سيجعل جميع كميات المواد مساوية لـ (0)!"
             )
             if st.button(
                 "نعم، أؤكد تصفير كافة الكميات",
@@ -227,7 +228,7 @@ with tabs[1]:
                 st.success("⚠️ تم تصفير كافة كميات المخزون بنجاح!")
                 st.rerun()
 
-# --- 3. طباعة وتصدير مستند Excel ---
+# --- 3. طباعة وتصدير Excel ---
 with tabs[2]:
     st.header("تصدير تقرير جرد المخزون إلى Excel")
     st.write(
@@ -239,7 +240,6 @@ with tabs[2]:
         columns=["اسم المادة الخام", "الكمية المتوفرة حالياً"],
     )
 
-    # إنشاء ملف Excel في الذاكرة لتنزيله
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         df_export.to_excel(writer, index=False, sheet_name="جرد_المخزون")
