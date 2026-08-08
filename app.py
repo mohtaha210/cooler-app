@@ -98,6 +98,17 @@ def load_all_factories():
                         f_data["finished_goods"] = {model: 0 for model in f_data.get("bom", {}).keys()}
                     if "agents" not in f_data:
                         f_data["agents"] = {}
+                    # حماية وتحديث بيانات الوكلاء لضمان وجود المفاتيح دائماً
+                    for ag_name, ag_info in f_data["agents"].items():
+                        if not isinstance(ag_info, dict):
+                            f_data["agents"][ag_name] = {"phone": "", "debt": 0.0, "transactions": []}
+                        else:
+                            if "debt" not in ag_info:
+                                ag_info["debt"] = 0.0
+                            if "transactions" not in ag_info:
+                                ag_info["transactions"] = []
+                            if "phone" not in ag_info:
+                                ag_info["phone"] = ""
                 return data
         except Exception:
             return {}
@@ -376,7 +387,8 @@ if st.session_state.role == "admin":
             month_sales_count = month_sales["items_count"].sum() if not month_sales.empty else 0
             month_revenue = month_sales["total"].sum() if not month_sales.empty else 0
 
-        total_debts = sum(agent["debt"] for agent in factory_data["agents"].values())
+        # حماية من KeyError بالحصول على القيمة بـ get
+        total_debts = sum(agent.get("debt", 0.0) for agent in factory_data["agents"].values() if isinstance(agent, dict))
 
         st.subheader("📅 ملخص حركة اليوم والشهر والديون")
         c1, c2, c3, c4, c5 = st.columns(5)
@@ -437,7 +449,7 @@ with tab_agents:
             st.info("لا يوجد وكلاء مسجلون حالياً.")
         else:
             selected_ag = st.selectbox("اختر الوكيل:", agents_list, key="pay_agent_select")
-            current_debt = factory_data["agents"][selected_ag]["debt"]
+            current_debt = factory_data["agents"][selected_ag].get("debt", 0.0)
             st.warning(f"💰 الدين الحالي المترتب على الوكيل [{selected_ag}]: **{current_debt:,} د.ع**")
 
             pay_amount = st.number_input("المبلغ المدفوع (المستلم):", min_value=1.0, value=min(100000.0, float(current_debt) if current_debt > 0 else 100000.0), step=10000.0)
@@ -450,7 +462,7 @@ with tab_agents:
                 receipt_no = factory_data.get("receipt_counter", 1001)
                 factory_data["receipt_counter"] = receipt_no + 1
 
-                factory_data["agents"][selected_ag]["transactions"].append({
+                factory_data["agents"][selected_ag].setdefault("transactions", []).append({
                     "date": datetime.now().strftime("%Y-%m-%d"),
                     "type": "تسديد دفعة",
                     "amount": -pay_amount,
@@ -582,10 +594,10 @@ with tab_receipt:
                 # تحديث حساب الوكيل والدين إن وجد
                 if selected_agent_name and selected_agent_name in factory_data["agents"]:
                     if remaining_amount > 0:
-                        old_debt = factory_data["agents"][selected_agent_name]["debt"]
+                        old_debt = factory_data["agents"][selected_agent_name].get("debt", 0.0)
                         new_debt = old_debt + remaining_amount
                         factory_data["agents"][selected_agent_name]["debt"] = new_debt
-                        factory_data["agents"][selected_agent_name]["transactions"].append({
+                        factory_data["agents"][selected_agent_name].setdefault("transactions", []).append({
                             "date": purchase_date.strftime("%Y-%m-%d"),
                             "type": "شراء برادات (متبقي)",
                             "amount": remaining_amount,
@@ -817,7 +829,7 @@ if st.session_state.role == "admin":
         
         agents_export_data = [
             {"اسم الوكيل": k, "رقم الهاتف": v.get("phone", ""), "الدين الحالي (د.ع)": v.get("debt", 0)}
-            for k, v in factory_data["agents"].items()
+            for k, v in factory_data["agents"].items() if isinstance(v, dict)
         ]
         df_agents_export = pd.DataFrame(agents_export_data)
 
