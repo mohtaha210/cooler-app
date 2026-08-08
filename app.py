@@ -593,35 +593,82 @@ elif selected_tab == "📄 تصدير تقارير Excel":
 # 8️⃣ إضافة مادة خام
 # -------------------------------------------------------------
 elif selected_tab == "➕ إضافة مادة خام":
-    st.markdown("### ➕ إضافة مواد جديدة أو زيادة المخزون")
-    mat_list = list(factory_data["inventory"].keys())
-    mat_choice = st.selectbox(
-        "اختر المادة أو أضف جديدة:", ["مادة جديدة..."] + mat_list
+    st.markdown("### ➕ إضافة مواد جديدة أو زيادة كميات المخزن")
+
+    action_type = st.radio(
+        "نوع الإضافة:",
+        ["زيادة كمية مادة موجودة", "إضافة مادة خام جديدة"],
+        horizontal=True,
+        key="mat_action_radio",
     )
 
-    if mat_choice == "مادة جديدة...":
-        new_mat_name = st.text_input("اسم المادة الخام الجديدة:")
-    else:
-        new_mat_name = mat_choice
+    inventory_dict = factory_data.get("inventory", {})
 
-    add_qty = st.number_input(
-        "الكمية المراد إضافتها:", min_value=0.1, step=1.0
-    )
+    if action_type == "زيادة كمية مادة موجودة":
+        if inventory_dict:
+            mat_choice = st.selectbox(
+                "اختر المادة الخام:",
+                list(inventory_dict.keys()),
+                key="existing_mat_select",
+            )
+            current_qty = inventory_dict.get(mat_choice, 0.0)
+            st.info(
+                f"الكمية الحالية في المخزن لـ ({mat_choice}):"
+                f" **{current_qty}**"
+            )
 
-    if st.button(
-        "🚀 تحديث وتخزين المادة", type="primary", key="add_material_btn"
-    ):
-        if new_mat_name:
-            factory_data["inventory"][new_mat_name] = (
-                factory_data["inventory"].get(new_mat_name, 0.0) + add_qty
+            add_qty = st.number_input(
+                "الكمية المراد إضافتها:",
+                min_value=0.1,
+                step=1.0,
+                key="add_existing_qty",
             )
-            save_all_factories(all_factories)
-            st.success(
-                f"✅ تم تحديث المخزون بنجاح وإضافة {add_qty} إلى ({new_mat_name})"
-            )
-            st.rerun()
+
+            if st.button(
+                "🚀 تحديث وزيادة المخزن", type="primary", key="update_mat_btn"
+            ):
+                factory_data["inventory"][mat_choice] = current_qty + add_qty
+                save_all_factories(all_factories)
+                st.success(
+                    f"✅ تم إضافة {add_qty} بنجاح إلى ({mat_choice}). المخزن"
+                    f" الجديد أصبح: {factory_data['inventory'][mat_choice]}"
+                )
+                st.rerun()
         else:
-            st.error("الرجاء إدخال اسم المادة بشكل صحيح.")
+            st.warning("لا توجد مواد خام مسجلة حالياً.")
+
+    else:
+        new_mat_name = st.text_input(
+            "اسم المادة الخام الجديدة:", key="new_mat_name_input"
+        )
+        initial_qty = st.number_input(
+            "الكمية الأولية للمادة:",
+            min_value=0.0,
+            step=1.0,
+            key="new_mat_qty_input",
+        )
+
+        if st.button(
+            "🚀 حفظ وإضافة المادة الجديدة",
+            type="primary",
+            key="save_new_mat_btn",
+        ):
+            if new_mat_name.strip():
+                if new_mat_name in inventory_dict:
+                    st.error(
+                        "⚠️ هذه المادة موجودة مسبقاً! يمكنك اختيار 'زيادة كمية"
+                        " مادة موجودة' لتحديثها."
+                    )
+                else:
+                    factory_data["inventory"][new_mat_name] = initial_qty
+                    save_all_factories(all_factories)
+                    st.success(
+                        "✅ تم إضافة المادة الجديدة"
+                        f" ({new_mat_name}) برصيد: {initial_qty}"
+                    )
+                    st.rerun()
+            else:
+                st.error("الرجاء إدخال اسم المادة بشكل صحيح.")
 
 # -------------------------------------------------------------
 # 9️⃣ أنواع البرادات (BOM)
