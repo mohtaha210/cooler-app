@@ -1,9 +1,11 @@
-from datetime import datetime
 import io
+import os
+from datetime import datetime
 import arabic_reshaper
 from bidi.algorithm import get_display
 from fpdf import FPDF
 import pandas as pd
+import requests
 import streamlit as st
 
 
@@ -15,45 +17,41 @@ def ar(text):
   return get_display(reshaped_text)
 
 
-# كلاس إعداد الـ PDF لدعم العربية
-class ReceiptPDF(FPDF):
+# دالة للتأكد من وجود الخط العربي وتنزيله تلقائياً
+def ensure_arabic_font():
+  font_path = "Amiri-Regular.ttf"
+  if not os.path.exists(font_path):
+    url = "https://github.com/google/fonts/raw/main/ofl/amiri/Amiri-Regular.ttf"
+    response = requests.get(url)
+    with open(font_path, "wb") as f:
+      f.write(response.content)
+  return font_path
 
-  def header(self):
-    pass
 
-
+# دالة إنشـاء وصل القبض بصيغة PDF
 def generate_receipt_pdf(
     customer_name, date_str, items_data, grand_total, receipt_no
 ):
+  font_path = ensure_arabic_font()
+
   pdf = FPDF()
   pdf.add_page()
 
-  # استخدام خط عربي يدعم UTF-8 بشكل متوافق تلقائياً
-  pdf.add_font(
-      "DejaVu",
-      "",
-      "https://github.com/reingart/pyfpdf/raw/master/font/DejaVuSans.ttf",
-      uni=True,
-  )
-  pdf.add_font(
-      "DejaVu",
-      "B",
-      "https://github.com/reingart/pyfpdf/raw/master/font/DejaVuSans-Bold.ttf",
-      uni=True,
-  )
+  # إضافة الخط العربي Amiri
+  pdf.add_font("Amiri", "", font_path)
 
   # العنوان الرئيسي
-  pdf.set_font("DejaVu", "B", 18)
+  pdf.set_font("Amiri", "", 20)
   pdf.set_text_color(30, 41, 59)
   pdf.cell(0, 10, ar("معمل برادات الرافدين"), ln=True, align="C")
 
-  pdf.set_font("DejaVu", "", 11)
+  pdf.set_font("Amiri", "", 12)
   pdf.set_text_color(100, 116, 139)
   pdf.cell(0, 6, ar("وصل قبض ومبيعات / Receipt"), ln=True, align="C")
   pdf.ln(8)
 
   # بيانات الوصل
-  pdf.set_font("DejaVu", "B", 10)
+  pdf.set_font("Amiri", "", 11)
   pdf.set_text_color(51, 65, 85)
 
   pdf.cell(0, 6, ar(f"رقم الوصل: #{receipt_no}"), ln=True, align="R")
@@ -64,7 +62,7 @@ def generate_receipt_pdf(
   # الجدول
   pdf.set_fill_color(30, 41, 59)
   pdf.set_text_color(255, 255, 255)
-  pdf.set_font("DejaVu", "B", 10)
+  pdf.set_font("Amiri", "", 12)
 
   col_widths = [40, 40, 30, 80]  # الإجمالي، السعر، الكمية، النوع
 
@@ -76,32 +74,31 @@ def generate_receipt_pdf(
       ar("نوع البراد"),
   ]
   for i, h in enumerate(headers):
-    pdf.cell(col_widths[i], 8, h, border=1, align="C", fill=True)
+    pdf.cell(col_widths[i], 9, h, border=1, align="C", fill=True)
   pdf.ln()
 
   # محتوى الجدول
   pdf.set_fill_color(255, 255, 255)
   pdf.set_text_color(33, 37, 41)
-  pdf.set_font("DejaVu", "", 10)
+  pdf.set_font("Amiri", "", 11)
 
   for item in items_data:
     pdf.cell(
-        col_widths[0], 8, f"{item['total']:,}", border=1, align="C"
+        col_widths[0], 9, f"{item['total']:,}", border=1, align="C"
     )
     pdf.cell(
-        col_widths[1], 8, f"{item['price']:,}", border=1, align="C"
+        col_widths[1], 9, f"{item['price']:,}", border=1, align="C"
     )
-    pdf.cell(col_widths[2], 8, str(item["count"]), border=1, align="C")
-    pdf.cell(col_widths[3], 8, ar(item["model"]), border=1, align="C")
+    pdf.cell(col_widths[2], 9, str(item["count"]), border=1, align="C")
+    pdf.cell(col_widths[3], 9, ar(item["model"]), border=1, align="C")
     pdf.ln()
 
   # صف الإجمالي الكلي
-  pdf.set_font("DejaVu", "B", 10)
   pdf.set_fill_color(241, 245, 249)
-  pdf.cell(col_widths[0], 9, f"{grand_total:,}", border=1, align="C", fill=True)
+  pdf.cell(col_widths[0], 10, f"{grand_total:,}", border=1, align="C", fill=True)
   pdf.cell(
       sum(col_widths[1:]),
-      9,
+      10,
       ar("المبلغ الإجمالي الكلي"),
       border=1,
       align="C",
