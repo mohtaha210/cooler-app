@@ -189,7 +189,7 @@ def generate_receipt_pdf(
 
 # --- 3. إعداد الصفحة والجلسة ---
 st.set_page_config(
-    page_title="نظام إدارة المعامل السحابي",
+    page_title="نظام إدارة المخزون والمعامل",
     page_icon="❄️",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -293,7 +293,7 @@ if st.session_state.role == "admin":
         "🛒 بيع براد / وصل قبض",
         "🏭 تسجيل إنتاج براد",
         "📦 إدارة المخزون",
-        "👥 إدارة الموظفين",
+        "👥 إدارة الحسابات والموظفين",
         "📄 تصدير Excel",
         "➕ إضافة مادة جديدة",
         "🛠️ أنواع البرادات (BOM)",
@@ -587,8 +587,12 @@ with tab_inv:
 
 # --- تبويبات الإدارة المتقدمة (للمدير فقط) ---
 if st.session_state.role == "admin":
+    # --- تبويب إدارة الحسابات والموظفين المطور ---
     with tabs[4]:
-        st.header("👥 إدارة حسابات الموظفين والمستخدمين")
+        st.header("👥 إدارة الحسابات والموظفين")
+
+        # 1. إضافة حساب جديد
+        st.subheader("➕ إضافة حساب موظف/مدير جديد")
         col_u_a1, col_u_a2 = st.columns(2)
         with col_u_a1:
             new_emp_user = st.text_input("اسم المستخدم الجديد (Username):")
@@ -601,7 +605,7 @@ if st.session_state.role == "admin":
                 format_func=lambda x: "👷 موظف" if x == "staff" else "👑 مدير",
             )
 
-        if st.button("➕ إنشاء حساب الموظف", type="primary", use_container_width=True):
+        if st.button("➕ إنشاء حساب جديد", type="primary", use_container_width=True):
             if not new_emp_user or not new_emp_pass or not new_emp_name:
                 st.error("يرجى ملء كافة البيانات.")
             elif new_emp_user in factory_data["users"]:
@@ -617,15 +621,87 @@ if st.session_state.role == "admin":
                 st.rerun()
 
         st.write("---")
-        users_list = [
-            {
-                "اسم المستخدم": u,
-                "الاسم": u_info.get("name", ""),
-                "الصلاحية": "مدير" if u_info.get("role") == "admin" else "موظف مبيعات",
-            }
-            for u, u_info in factory_data["users"].items()
-        ]
-        st.dataframe(pd.DataFrame(users_list), use_container_width=True)
+
+        # 2. تعديل بيانات حساب موجود
+        st.subheader("✏️ تعديل بيانات حساب (اسم المستخدم / كلمة السر)")
+        user_list = list(factory_data["users"].keys())
+        selected_user_to_edit = st.selectbox("اختر الحساب المراد تعديله:", user_list)
+
+        if selected_user_to_edit:
+            u_data = factory_data["users"][selected_user_to_edit]
+            
+            col_ed1, col_ed2 = st.columns(2)
+            with col_ed1:
+                edit_new_username = st.text_input("اسم المستخدم الجديد:", value=selected_user_to_edit, key="edit_uname")
+                edit_fullname = st.text_input("الاسم الكامل:", value=u_data.get("name", ""), key="edit_fname")
+            with col_ed2:
+                edit_password = st.text_input("كلمة المرور الجديدة:", value=u_data.get("password", ""), key="edit_pass")
+                edit_role = st.selectbox(
+                    "الصلاحية:",
+                    ["staff", "admin"],
+                    index=0 if u_data.get("role") == "staff" else 1,
+                    format_func=lambda x: "👷 موظف" if x == "staff" else "👑 مدير",
+                    key="edit_role"
+                )
+
+            if st.button("💾 حفظ التعديلات على الحساب", use_container_width=True):
+                if not edit_new_username or not edit_password or not edit_fullname:
+                    st.error("لا يمكن إبقاء الحقول فارغة!")
+                elif edit_new_username != selected_user_to_edit and edit_new_username in factory_data["users"]:
+                    st.error("اسم المستخدم الجديد مأخوذ بالفعل!")
+                else:
+                    # في حال تغير اسم المستخدم، نقوم بنقل البيانات وحذف القديم
+                    factory_data["users"][edit_new_username] = {
+                        "password": edit_password,
+                        "role": edit_role,
+                        "name": edit_fullname
+                    }
+                    if edit_new_username != selected_user_to_edit:
+                        del factory_data["users"][selected_user_to_edit]
+                        if st.session_state.username == selected_user_to_edit:
+                            st.session_state.username = edit_new_username
+                    
+                    save_all_factories(all_factories)
+                    st.success("✅ تم تعديل بيانات الحساب بنجاح!")
+                    st.rerun()
+
+        st.write("---")
+
+        # 3. إزالة الحسابات الغير مرغوب فيها
+        st.subheader("🗑️ إزالة الحسابات غير المرغوب فيها")
+        user_to_delete = st.selectbox("اختر الحساب المراد حذفه نهائياً:", user_list, key="del_user_select")
+        
+        if user_to_delete:
+            if user_to_delete == st.session_state.username:
+                st.warning("⚠️ لا يمكنك حذف الحساب الذي تسجل الدخول به حالياً!")
+            else:
+                with st.popover(f"❌ تأكيد حذف الحساب [{user_to_delete}]"):
+                    st.write(f"هل أنت متأكد من حذف الحساب ({user_to_delete}) نهائياً؟")
+                    if st.button("نعم، احذف الحساب الآن", type="primary", use_container_width=True):
+                        del factory_data["users"][user_to_delete]
+                        save_all_factories(all_factories)
+                        st.success(f"✅ تم حذف الحساب [{user_to_delete}] بنجاح!")
+                        st.rerun()
+
+        st.write("---")
+
+        # 4. حذف معمل/مخزن بالكامل (لتنظيف شاشة التسجيل)
+        st.subheader("🏚️ إدارة المعامل والمخازن المسجلة بالنظام")
+        st.write("يمكنك حذف أي معمل أو مخزن زائد بالنظام لتنظيف القائمة في شاشة تسجيل الدخول.")
+        
+        all_factories_list = list(all_factories.keys())
+        factory_to_delete = st.selectbox("اختر المعمل/المخزن المراد حذفه نهائياً:", all_factories_list, key="del_factory_select")
+
+        with st.popover(f"🚨 حذف المعمل [{factory_to_delete}] بالكامل"):
+            st.error(f"تحذير: هذا الخيار سيحذف المعمل ({factory_to_delete}) وجميع بياناته ومستخدميه ولا يمكن استرجاعها!")
+            if st.button("نعم، احذف هذا المعمل نهائياً", type="primary", use_container_width=True):
+                del all_factories[factory_to_delete]
+                save_all_factories(all_factories)
+                if factory_to_delete == current_factory_name:
+                    st.session_state.authenticated = False
+                    st.session_state.factory_key = None
+                st.success(f"✅ تم حذف المعمل [{factory_to_delete}] بنجاح!")
+                st.rerun()
 
     with tabs[5]:
         st.header("تصدير تقرير جرد المخزون والبرادات إلى Excel")
