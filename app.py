@@ -97,7 +97,7 @@ def generate_agent_receipt_pdf(
 
     pdf.set_font("Amiri", "", 12)
     pdf.set_text_color(100, 116, 139)
-    pdf.cell(0, 6, ar("قائمة حساب / Agent Invoice"), ln=True, align="C")
+    pdf.cell(0, 6, ar("وصل مبيعات وكيل وحساب مالي / Agent Invoice"), ln=True, align="C")
     pdf.ln(6)
 
     pdf.set_font("Amiri", "", 11)
