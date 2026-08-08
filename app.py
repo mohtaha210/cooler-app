@@ -7,8 +7,8 @@ import streamlit as st
 
 # --- إعدادات الصفحة ---
 st.set_page_config(
-    page_title="معاش - إدارة المعامل والديون",
-    page_icon="🍏",
+    page_title="منصة ادارة بيانات معمل الرافدين",
+    page_icon="🏭",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
