@@ -9,11 +9,19 @@ import pandas as pd
 import requests
 import streamlit as st
 
-DATA_FILE = "factory_data.json"
+DATA_FILE = "multi_factory_data.json"
 
-# --- 1. إدارة ملف البيانات والتخزين الدائم ---
-def get_default_data():
+# --- 1. إدارة ملف البيانات والتخزين الدائم للنظام المتعدد المعامل ---
+def get_default_factory_data(factory_name, admin_user, admin_pass):
   return {
+      "info": {"factory_name": factory_name},
+      "users": {
+          admin_user: {
+              "password": admin_pass,
+              "role": "admin",
+              "name": f"مدير {factory_name}",
+          }
+      },
       "inventory": {
           "الحنفية": 100.0,
           "البانكة": 50.0,
@@ -76,38 +84,30 @@ def get_default_data():
   }
 
 
-def load_data():
+def load_all_factories():
   if os.path.exists(DATA_FILE):
     try:
       with open(DATA_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
-        if "sales_history" not in data:
-          data["sales_history"] = []
-        if "production_history" not in data:
-          data["production_history"] = []
-        return data
+        return json.load(f)
     except Exception:
-      return get_default_data()
+      return {}
   else:
-    data = get_default_data()
-    save_data(data)
-    return data
-
-
-def save_data(data=None):
-  if data is None:
-    data = {
-        "inventory": st.session_state.inventory,
-        "bom": st.session_state.bom,
-        "receipt_counter": st.session_state.receipt_counter,
-        "sales_history": st.session_state.sales_history,
-        "production_history": st.session_state.production_history,
+    # إنشاء معمل الرافدين كمعمل افتراضي أول
+    default_db = {
+        "معمل برادات الرافدين": get_default_factory_data(
+            "معمل برادات الرافدين", "admin", "123"
+        )
     }
+    save_all_factories(default_db)
+    return default_db
+
+
+def save_all_factories(data):
   with open(DATA_FILE, "w", encoding="utf-8") as f:
     json.dump(data, f, ensure_ascii=False, indent=4)
 
 
-# --- 2. دوال معالجة النصوص والـ PDF ---
+# --- 2. دوال الطباعة والـ PDF ---
 def ar(text):
   if not text:
     return ""
@@ -126,7 +126,7 @@ def ensure_arabic_font():
 
 
 def generate_receipt_pdf(
-    customer_name, date_str, items_data, grand_total, receipt_no
+    factory_name, customer_name, date_str, items_data, grand_total, receipt_no
 ):
   font_path = ensure_arabic_font()
   pdf = FPDF()
@@ -135,7 +135,7 @@ def generate_receipt_pdf(
 
   pdf.set_font("Amiri", "", 20)
   pdf.set_text_color(30, 41, 59)
-  pdf.cell(0, 10, ar("معمل برادات الرافدين"), ln=True, align="C")
+  pdf.cell(0, 10, ar(factory_name), ln=True, align="C")
 
   pdf.set_font("Amiri", "", 12)
   pdf.set_text_color(100, 116, 139)
@@ -192,84 +192,116 @@ def generate_receipt_pdf(
   return bytes(pdf.output())
 
 
-# --- 3. ضبط الصفحة وتحميل البيانات ---
+# --- 3. إعداد الصفحة الجلسة ---
 st.set_page_config(
-    page_title="نظام معمل برادات الرافدين",
+    page_title="نظام إدارة المعامل السحابي",
     page_icon="❄️",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
-if "inventory" not in st.session_state:
-  saved_data = load_data()
-  st.session_state.inventory = saved_data["inventory"]
-  st.session_state.bom = saved_data["bom"]
-  st.session_state.receipt_counter = saved_data.get("receipt_counter", 1001)
-  st.session_state.sales_history = saved_data.get("sales_history", [])
-  st.session_state.production_history = saved_data.get(
-      "production_history", []
-  )
+all_factories = load_all_factories()
 
-# --- 4. نظام تسجيل الدخول والصلاحيات ---
 if "authenticated" not in st.session_state:
   st.session_state.authenticated = False
+  st.session_state.factory_key = None
+  st.session_state.username = None
   st.session_state.role = None
   st.session_state.user_fullname = ""
 
-USERS = {
-    "admin": {
-        "password": "123",
-        "role": "admin",
-        "name": "المدير العام",
-    },
-    "staff": {
-        "password": "123",
-        "role": "staff",
-        "name": "موظف المبيعات والإنتاج",
-    },
-}
-
+# --- 4. شاشة تسجيل الدخول وإنشاء معمل جديد ---
 if not st.session_state.authenticated:
-  st.title("🔒 تسجيل الدخول - معمل برادات الرافدين")
-  username = st.text_input("اسم المستخدم")
-  password = st.text_input("كلمة المرور", type="password")
+  st.title("❄️ نظام إدارة وتتبع المعامل والمخزون")
 
-  if st.button("تسجيل الدخول", type="primary", use_container_width=True):
-    if username in USERS and USERS[username]["password"] == password:
-      st.session_state.authenticated = True
-      st.session_state.role = USERS[username]["role"]
-      st.session_state.user_fullname = USERS[username]["name"]
-      st.rerun()
+  login_tab, register_tab = st.tabs(
+      ["🔑 تسجيل الدخول", "🏭 إنشاء حساب معمل جديد"]
+  )
+
+  with login_tab:
+    st.subheader("دخول إلى حساب المعمل")
+    factory_list = list(all_factories.keys())
+    if not factory_list:
+      st.warning("لا توجد معامل مسجلة بعد. يرجى إنشاء معمل جديد.")
     else:
-      st.error("اسم المستخدم أو كلمة المرور غير صحيحة!")
+      selected_factory = st.selectbox("اختر المعمل:", factory_list)
+      username_input = st.text_input("اسم المستخدم:")
+      password_input = st.text_input("كلمة المرور:", type="password")
+
+      if st.button("تسجيل الدخول", type="primary", use_container_width=True):
+        factory_users = all_factories[selected_factory].get("users", {})
+        if (
+            username_input in factory_users
+            and factory_users[username_input]["password"] == password_input
+        ):
+          st.session_state.authenticated = True
+          st.session_state.factory_key = selected_factory
+          st.session_state.username = username_input
+          st.session_state.role = factory_users[username_input]["role"]
+          st.session_state.user_fullname = factory_users[username_input][
+              "name"
+          ]
+          st.success("تم تسجيل الدخول بنجاح!")
+          st.rerun()
+        else:
+          st.error("اسم المستخدم أو كلمة المرور غير صحيحة لهذا المعمل!")
+
+  with register_tab:
+    st.subheader("تسجيل معمل جديد بالنظام")
+    new_factory_name = st.text_input("اسم المعمل الجديد (مثال: معمل بغداد):")
+    admin_user = st.text_input("اسم مستخدم المدير (Admin Username):")
+    admin_pass = st.text_input("كلمة مرور المدير:", type="password")
+
+    if st.button(
+        "🚀 إنشاء المعمل وبدء الاستخدام",
+        type="primary",
+        use_container_width=True,
+    ):
+      if not new_factory_name or not admin_user or not admin_pass:
+        st.error("يرجى ملء جميع الحقول المطلوبة.")
+      elif new_factory_name in all_factories:
+        st.error("اسم هذا المعمل موجود بالفعل! اختر اسماً آخر.")
+      else:
+        all_factories[new_factory_name] = get_default_factory_data(
+            new_factory_name, admin_user, admin_pass
+        )
+        save_all_factories(all_factories)
+        st.success(
+            f"✅ تم إنشاء [{new_factory_name}] بنجاح! يمكنك الآن تسجيل الدخول."
+        )
+
   st.stop()
 
-# --- 5. الواجهة الرئيسية وشريط المستخدم ---
-st.title("❄️ معمل برادات الرافدين - نظام إدارة وتتبع المخزون والمبيعات")
+# --- 5. تحميل بيانات المعمل الحالي الحالية ---
+current_factory_name = st.session_state.factory_key
+factory_data = all_factories[current_factory_name]
+
+# --- 6. الواجهة الرئيسية وشريط المستخدم ---
+st.title(f"❄️ {current_factory_name}")
 
 col_u1, col_u2 = st.columns([3, 1])
 with col_u1:
   role_badge = (
-      "👑 مدير النظام (صلاحيات كاملة)"
+      "👑 مدير المعمل (صلاحيات كاملة)"
       if st.session_state.role == "admin"
-      else "👷 موظف (مبيعات وإنتاج فقط)"
+      else "👷 موظف (مبيعات وإنتاج)"
   )
-  st.info(f"مرحباً بك: **{st.session_state.user_fullname}** | {role_badge}")
+  st.info(f"المستخدم الحالي: **{st.session_state.user_fullname}** | {role_badge}")
 with col_u2:
   if st.button("🚪 تسجيل الخروج", use_container_width=True):
     st.session_state.authenticated = False
-    st.session_state.role = None
+    st.session_state.factory_key = None
     st.rerun()
 
 st.write("---")
 
-# --- 6. التبويبات بحسب الصلاحيات ---
+# --- 7. التبويبات بحسب الصلاحيات ---
 if st.session_state.role == "admin":
   tabs = st.tabs([
       "📊 التقارير الشاملة",
       "🧾 إصدار وصل قبض (PDF)",
       "🏭 تسجيل إنتاج",
-      "📦 إدارة وتعديل المخزون",
+      "📦 إدارة المخزون",
+      "👥 إدارة الموظفين",
       "📄 تصدير Excel",
       "➕ إضافة مادة جديدة",
       "🛠️ أنواع البرادات (BOM)",
@@ -289,9 +321,8 @@ if st.session_state.role == "admin":
     today_str = datetime.now().strftime("%Y-%m-%d")
     current_month_str = datetime.now().strftime("%Y-%m")
 
-    # حساب مبيعات اليوم والشهر
-    sales_df = pd.DataFrame(st.session_state.sales_history)
-    prod_df = pd.DataFrame(st.session_state.production_history)
+    sales_df = pd.DataFrame(factory_data.get("sales_history", []))
+    prod_df = pd.DataFrame(factory_data.get("production_history", []))
 
     today_sales_count = 0
     today_revenue = 0
@@ -311,7 +342,6 @@ if st.session_state.role == "admin":
       month_sales_count = month_sales["items_count"].sum() if not month_sales.empty else 0
       month_revenue = month_sales["total"].sum() if not month_sales.empty else 0
 
-    # حساب إنتاج اليوم والشهر
     today_prod_count = 0
     month_prod_count = 0
 
@@ -325,7 +355,6 @@ if st.session_state.role == "admin":
       today_prod_count = today_prod["count"].sum() if not today_prod.empty else 0
       month_prod_count = month_prod["count"].sum() if not month_prod.empty else 0
 
-    # عرض كروت الإحصائيات
     st.subheader("📅 ملخص حركة اليوم والشهر")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("البرادات المباعة اليوم", f"{today_sales_count} براد")
@@ -341,7 +370,7 @@ if st.session_state.role == "admin":
     st.write("---")
     st.subheader("📦 حالة كافة المواد المتوفرة في المخزن")
     inv_df = pd.DataFrame(
-        list(st.session_state.inventory.items()),
+        list(factory_data["inventory"].items()),
         columns=["اسم المادة الخام", "الكمية الحالية"],
     )
     st.dataframe(inv_df, use_container_width=True)
@@ -356,7 +385,7 @@ with tab_receipt:
   with col_rec2:
     purchase_date = st.date_input("تاريخ الشراء:", value=datetime.now())
 
-  model_list = list(st.session_state.bom.keys())
+  model_list = list(factory_data["bom"].keys())
   if not model_list:
     st.warning("لا توجد أنواع برادات معرفة بالنظام.")
   else:
@@ -402,33 +431,33 @@ with tab_receipt:
       elif not selected_items:
         st.error("يرجى تحديد كمية براد واحد على الأقل.")
       else:
+        receipt_no = factory_data.get("receipt_counter", 1001)
         pdf_bytes = generate_receipt_pdf(
+            factory_name=current_factory_name,
             customer_name=customer_name,
             date_str=purchase_date.strftime("%Y-%m-%d"),
             items_data=selected_items,
             grand_total=grand_total,
-            receipt_no=st.session_state.receipt_counter,
+            receipt_no=receipt_no,
         )
 
-        # تسجيل السجل في التاريخ
-        st.session_state.sales_history.append({
-            "receipt_no": st.session_state.receipt_counter,
+        # تسجيل السجل
+        factory_data["sales_history"].append({
+            "receipt_no": receipt_no,
             "date": purchase_date.strftime("%Y-%m-%d"),
             "customer": customer_name,
             "items_count": total_units,
             "total": grand_total,
         })
 
-        st.session_state.receipt_counter += 1
-        save_data()
+        factory_data["receipt_counter"] = receipt_no + 1
+        save_all_factories(all_factories)
 
-        st.success("✅ تم تجهيز الوصل وتسجيل المبيعات في التقرير بنجاح!")
+        st.success("✅ تم تجهيز الوصل وتسجيل المبيعات بنجاح!")
         st.download_button(
             label="📥 تنزيل وصل القبض PDF",
             data=pdf_bytes,
-            file_name=(
-                f"وصل_قبض_{st.session_state.receipt_counter - 1}_{customer_name}.pdf"
-            ),
+            file_name=f"وصل_قبض_{receipt_no}_{customer_name}.pdf",
             mime="application/pdf",
             use_container_width=True,
         )
@@ -437,7 +466,7 @@ with tab_receipt:
 tab_prod = tabs[2] if st.session_state.role == "admin" else tabs[1]
 with tab_prod:
   st.header("تسجيل عملية إنتاج براد")
-  model_list = list(st.session_state.bom.keys())
+  model_list = list(factory_data["bom"].keys())
   if not model_list:
     st.warning("لا توجد أنواع برادات معروفة في النظام حالياً.")
   else:
@@ -451,12 +480,12 @@ with tab_prod:
         type="primary",
         use_container_width=True,
     ):
-      required_bom = st.session_state.bom[model]
+      required_bom = factory_data["bom"][model]
       missing_items = []
 
       for item, qty in required_bom.items():
         needed = qty * count
-        available = st.session_state.inventory.get(item, 0)
+        available = factory_data["inventory"].get(item, 0)
         if available < needed:
           missing_items.append(
               f"- **{item}**: المطلوب ({needed})، المتوفر ({available})"
@@ -468,16 +497,15 @@ with tab_prod:
           st.write(m)
       else:
         for item, qty in required_bom.items():
-          st.session_state.inventory[item] -= qty * count
+          factory_data["inventory"][item] -= qty * count
 
-        # تسجيل الإنتاج في السجل
-        st.session_state.production_history.append({
+        factory_data["production_history"].append({
             "date": datetime.now().strftime("%Y-%m-%d"),
             "model": model,
             "count": count,
         })
 
-        save_data()
+        save_all_factories(all_factories)
         st.success(f"✅ تم تسجيل إنتاج ({count}) من [{model}] بنجاح!")
         st.rerun()
 
@@ -487,7 +515,7 @@ with tab_inv:
   if st.session_state.role == "admin":
     st.header("عرض وتعديل كميات المخزون الحالية")
     df = pd.DataFrame(
-        list(st.session_state.inventory.items()),
+        list(factory_data["inventory"].items()),
         columns=["اسم المادة الخام", "الكمية المتوفرة"],
     )
     edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True)
@@ -499,8 +527,8 @@ with tab_inv:
         for _, row in edited_df.iterrows():
           if row["اسم المادة الخام"]:
             new_inv[row["اسم المادة الخام"]] = float(row["الكمية المتوفرة"])
-        st.session_state.inventory = new_inv
-        save_data()
+        factory_data["inventory"] = new_inv
+        save_all_factories(all_factories)
         st.success("✅ تم تحديث بيانات المخزون وحفظها بنجاح!")
         st.rerun()
 
@@ -512,26 +540,75 @@ with tab_inv:
             type="primary",
             use_container_width=True,
         ):
-          for item in st.session_state.inventory:
-            st.session_state.inventory[item] = 0.0
-          save_data()
+          for item in factory_data["inventory"]:
+            factory_data["inventory"][item] = 0.0
+          save_all_factories(all_factories)
           st.success("⚠️ تم تصفير كافة الكميات!")
           st.rerun()
   else:
     st.header("📦 كميات المواد المتوفرة حالياً بالمخزن")
     df = pd.DataFrame(
-        list(st.session_state.inventory.items()),
+        list(factory_data["inventory"].items()),
         columns=["اسم المادة الخام", "الكمية المتوفرة"],
     )
     st.dataframe(df, use_container_width=True)
 
 # --- تبويبات الإدارة المتقدمة (للمدير فقط) ---
 if st.session_state.role == "admin":
-  # تصدير Excel
+  # تبويب إدارة الموظفين
   with tabs[4]:
+    st.header("👥 إدارة حسابات الموظفين والمستخدمين")
+
+    st.subheader("➕ إضافة موظف أو مستخدم جديد لمعملك")
+    col_u_a1, col_u_a2 = st.columns(2)
+    with col_u_a1:
+      new_emp_user = st.text_input("اسم المستخدم الجديد (Username):")
+      new_emp_name = st.text_input("اسم الموظف الثلاثي:")
+    with col_u_a2:
+      new_emp_pass = st.text_input("كلمة المرور:", type="password")
+      new_emp_role = st.selectbox(
+          "الصلاحية:",
+          ["staff", "admin"],
+          format_func=lambda x: (
+              "👷 موظف (مبيعات وإنتاج)"
+              if x == "staff"
+              else "👑 مدير (صلاحيات كاملة)"
+          ),
+      )
+
+    if st.button("➕ إنشاء حساب الموظف", type="primary", use_container_width=True):
+      if not new_emp_user or not new_emp_pass or not new_emp_name:
+        st.error("يرجى ملء كافة البيانات.")
+      elif new_emp_user in factory_data["users"]:
+        st.error("اسم المستخدم هذا موجود بالفعل في المعمل!")
+      else:
+        factory_data["users"][new_emp_user] = {
+            "password": new_emp_pass,
+            "role": new_emp_role,
+            "name": new_emp_name,
+        }
+        save_all_factories(all_factories)
+        st.success(f"✅ تم إضافة الحساب للموظف [{new_emp_name}] بنجاح!")
+        st.rerun()
+
+    st.write("---")
+    st.subheader("📋 قائمة الحسابات المسجلة حالياً بالمعمل")
+    users_list = []
+    for u, u_info in factory_data["users"].items():
+      users_list.append({
+          "اسم المستخدم": u,
+          "الاسم": u_info.get("name", ""),
+          "الصلاحية": (
+              "مدير" if u_info.get("role") == "admin" else "موظف مبيعات"
+          ),
+      })
+    st.dataframe(pd.DataFrame(users_list), use_container_width=True)
+
+  # تصدير Excel
+  with tabs[5]:
     st.header("تصدير تقرير جرد المخزون إلى Excel")
     df_export = pd.DataFrame(
-        list(st.session_state.inventory.items()),
+        list(factory_data["inventory"].items()),
         columns=["اسم المادة الخام", "الكمية المتوفرة حالياً"],
     )
 
@@ -542,14 +619,14 @@ if st.session_state.role == "admin":
     st.download_button(
         label="📥 تنزيل تقرير المخزون (Excel)",
         data=buffer.getvalue(),
-        file_name="جرد_مخزون_المعمل.xlsx",
+        file_name=f"جرد_{current_factory_name}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True,
     )
     st.dataframe(df_export, use_container_width=True)
 
   # إضافة مادة
-  with tabs[5]:
+  with tabs[6]:
     st.header("إضافة مادة خام جديدة كلياً")
     new_item_name = st.text_input("اسم المادة الخام الجديدة:")
     initial_qty = st.number_input("الكمية الأولية:", min_value=0.0, value=0.0)
@@ -558,23 +635,23 @@ if st.session_state.role == "admin":
         "➕ إضافة المادة للمخزن", type="primary", use_container_width=True
     ):
       if new_item_name:
-        if new_item_name in st.session_state.inventory:
+        if new_item_name in factory_data["inventory"]:
           st.warning("هذه المادة موجودة بالفعل بالمخزن!")
         else:
-          st.session_state.inventory[new_item_name] = initial_qty
-          save_data()
+          factory_data["inventory"][new_item_name] = initial_qty
+          save_all_factories(all_factories)
           st.success(f"✅ تمت إضافة المادة [{new_item_name}] بنجاح!")
           st.rerun()
       else:
         st.error("يرجى إدخال اسم المادة.")
 
   # مكونات البرادات
-  with tabs[6]:
+  with tabs[7]:
     st.header("تعريف نموذج براد جديد وقائمة مكوناته")
     new_model_name = st.text_input("اسم نموذج البراد الجديد:")
     selected_ingredients = {}
 
-    for item in st.session_state.inventory.keys():
+    for item in factory_data["inventory"].keys():
       use_item = st.checkbox(f"يدخل فيه: {item}", key=f"chk_{item}")
       if use_item:
         qty_needed = st.number_input(
@@ -587,8 +664,8 @@ if st.session_state.role == "admin":
 
     if st.button("🛠️ حفظ النموذج الجديد", use_container_width=True):
       if new_model_name and selected_ingredients:
-        st.session_state.bom[new_model_name] = selected_ingredients
-        save_data()
+        factory_data["bom"][new_model_name] = selected_ingredients
+        save_all_factories(all_factories)
         st.success(f"✅ تم تعريف النموذج [{new_model_name}] بنجاح!")
         st.rerun()
       else:
