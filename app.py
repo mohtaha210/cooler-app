@@ -9,11 +9,17 @@ from bidi.algorithm import get_display
 # --- إعدادات الصفحة والنظام ---
 st.set_page_config(page_title="نظام إدارة المعمل المتكامل", layout="wide")
 
-# --- تهيئة ذاكرة المخزون (Session State) ---
+# --- تهيئة ذاكرة النظام (Session State) ---
 if "inventory" not in st.session_state:
     st.session_state.inventory = [
-        {"اسم المنتج / المادة": "مادة خام A", "الكمية": 100, "سعر الوحدة ($)": 15.0, "إجمالي القيمة ($)": 1500.0},
-        {"اسم المنتج / المادة": "منتج نهائي B", "الكمية": 50, "سعر الوحدة ($)": 40.0, "إجمالي القيمة ($)": 2000.0}
+        {"اسم المادة الخام": "جلد طبيعي", "الكمية": 200, "سعر الوحدة ($)": 10.0, "إجمالي القيمة ($)": 2000.0},
+        {"اسم المادة الخام": "نعل مطاطي", "الكمية": 500, "سعر الوحدة ($)": 3.0, "إجمالي القيمة ($)": 1500.0},
+        {"اسم المادة الخام": "خيوط حياكة", "الكمية": 50, "سعر الوحدة ($)": 2.0, "إجمالي القيمة ($)": 100.0}
+    ]
+
+if "products" not in st.session_state:
+    st.session_state.products = [
+        {"اسم المنتج النهائي": "حذاء كلاسيك", "المادة الخام المستهلكة": "جلد طبيعي", "الكمية المستهلكة للقطعة": 2, "المخزون الحالي": 20}
     ]
 
 # --- دالة معالجة النصوص العربية ---
@@ -47,7 +53,7 @@ def generate_blank_sanad_qabd_pdf():
 
     pdf.set_font("Amiri", "", 12)
 
-    # الصف الأول: رقم المستند (يمين) | العملة (يسار)
+    # الصف الأول: رقم المستند | العملة
     y1 = 28
     pdf.set_xy(105, y1)
     pdf.cell(65, 11, "", border=1)
@@ -57,7 +63,7 @@ def generate_blank_sanad_qabd_pdf():
     pdf.cell(65, 11, "", border=1)
     pdf.cell(30, 11, ar("العملة"), border=1, align="C")
 
-    # الصف الثاني: تاريخ المستند (يمين) | السيد (يسار)
+    # الصف الثاني: تاريخ المستند | السيد
     y2 = y1 + 11
     pdf.set_xy(105, y2)
     pdf.cell(65, 11, "", border=1)
@@ -67,7 +73,7 @@ def generate_blank_sanad_qabd_pdf():
     pdf.cell(65, 11, "", border=1)
     pdf.cell(30, 11, ar("السيد"), border=1, align="C")
 
-    # الصف الثالث: المبلغ رقماً + المبلغ كتابةً
+    # الصف الثالث: المبلغ
     y3 = y2 + 11
     pdf.set_xy(10, y3)
     pdf.cell(95, 11, "", border=1)
@@ -80,7 +86,7 @@ def generate_blank_sanad_qabd_pdf():
     pdf.cell(160, 12, "", border=1)
     pdf.cell(30, 12, ar("الملاحظات"), border=1, align="C")
 
-    # جدول الأرصدة السفلي
+    # جدول الأرصدة
     y5 = y4 + 14
     pdf.set_xy(105, y5)
     pdf.cell(65, 10, "", border=1)
@@ -103,85 +109,128 @@ def generate_blank_sanad_qabd_pdf():
 st.sidebar.title("🏭 نظام إدارة المعمل")
 menu = st.sidebar.radio(
     "القائمة الرئيسية:",
-    ["الرئيسية (لوحة التحكم)", "إدارة المخزن والمواد الخام", "الحسابات والسندات", "إدارة الإنتاج والطلبيات"]
+    ["الرئيسية (لوحة التحكم)", "إدارة المواد الخام (المخزن)", "منتجات المعمل والإنتاج", "الحسابات والسندات"]
 )
 
 # --- 1. قسم الرئيسية ---
 if menu == "الرئيسية (لوحة التحكم)":
     st.title("📊 لوحة تحكم المعمل")
-    st.write("مرحباً بك في نظام إدارة المعمل. يمكنك متابعة العمليات والحسابات من هنا.")
     
-    total_items = sum(item["الكمية"] for item in st.session_state.inventory)
-    total_val = sum(item["إجمالي القيمة ($)"] for item in st.session_state.inventory)
+    tot_raw = sum(item["الكمية"] for item in st.session_state.inventory)
+    tot_val = sum(item["إجمالي القيمة ($)"] for item in st.session_state.inventory)
+    tot_prods = sum(p["المخزون الحالي"] for p in st.session_state.products)
     
     col1, col2, col3 = st.columns(3)
-    col1.metric("إجمالي القطع بالمخزن", f"{total_items:,}")
-    col2.metric("قيمة المخزون الكلية", f"${total_val:,.2f}")
-    col3.metric("الأنواع المسجلة", len(st.session_state.inventory))
+    col1.metric("المواد الخام بالمخزن", f"{tot_raw:,} وحدة")
+    col2.metric("إجمالي المنتجات الجاهزة", f"{tot_prods:,} قطعة")
+    col3.metric("قيمة المواد الخام الكلية", f"${tot_val:,.2f}")
 
-# --- 2. قسم المخزن المتكامل (إضافة / عرض / حذف) ---
-elif menu == "إدارة المخزن والمواد الخام":
-    st.title("🏗️ إدارة المخزن والمواد الخام")
-    st.write("يمكنك إضافة عناصر جديدة إلى المخزون أو التعديل والحذف مباشرة.")
+# --- 2. قسم المخزن والمواد الخام ---
+elif menu == "إدارة المواد الخام (المخزن)":
+    st.title("🏗️ إدارة المواد الخام بالمخزن")
 
-    # ➕ نموذج إضافة عنصر جديد للمخزن
-    with st.expander("➕ إضافة منتج / مادة خام جديدة للمخزن", expanded=True):
-        with st.form("add_inventory_form", clear_on_submit=True):
+    with st.expander("➕ إضافة مادة خام جديدة للمخزن", expanded=True):
+        with st.form("add_raw_form", clear_on_submit=True):
             col_a, col_b, col_c = st.columns(3)
             with col_a:
-                item_name = st.text_input("اسم المنتج / المادة")
+                raw_name = st.text_input("اسم المادة الخام")
             with col_b:
-                item_qty = st.number_input("الكمية", min_value=1, value=10, step=1)
+                raw_qty = st.number_input("الكمية المتاحة", min_value=1, value=50)
             with col_c:
-                item_price = st.number_input("سعر الوحدة ($)", min_value=0.0, value=5.0, step=0.5)
+                raw_price = st.number_input("سعر الوحدة ($)", min_value=0.0, value=5.0)
             
-            submit_btn = st.form_submit_button("حفظ وإضافة للمخزن")
-            
-            if submit_btn:
-                if item_name.strip() != "":
-                    total_p = item_qty * item_price
+            if st.form_submit_button("حفظ المادة الخام"):
+                if raw_name.strip():
                     st.session_state.inventory.append({
-                        "اسم المنتج / المادة": item_name,
-                        "الكمية": item_qty,
-                        "سعر الوحدة ($)": item_price,
-                        "إجمالي القيمة ($)": total_p
+                        "اسم المادة الخام": raw_name,
+                        "الكمية": raw_qty,
+                        "سعر الوحدة ($)": raw_price,
+                        "إجمالي القيمة ($)": raw_qty * raw_price
                     })
-                    st.success(f"تمت إضافة ({item_name}) بنجاح إلى المخزن!")
-                else:
-                    st.error("يرجى إدخال اسم المنتج أولاً.")
+                    st.success(f"تمت إضافة ({raw_name}) إلى المخزن بنجاح!")
+                    st.rerun()
 
-    st.divider()
-
-    # 📋 عرض جدول المخزون الحالي
-    st.subheader("📋 جدول المخزون الحالي")
-    if len(st.session_state.inventory) > 0:
-        df = pd.DataFrame(st.session_state.inventory)
-        st.dataframe(df, use_container_width=True)
-        
-        # حاسبة إجماليات المخزن
-        tot_qty = sum(item["الكمية"] for item in st.session_state.inventory)
-        tot_val = sum(item["إجمالي القيمة ($)"] for item in st.session_state.inventory)
-        
-        col_m1, col_m2 = st.columns(2)
-        col_m1.info(f"📦 مجموع الكميات بالمخزن: **{tot_qty:,}** قطعة")
-        col_m2.success(f"💰 إجمالي قيمة المخزون: **${tot_val:,.2f}**")
-
-        # 🗑️ خيار حذف عنصر من المخزن
-        st.subheader("🗑️ إدارة / حذف عنصر من المخزن")
-        item_to_delete = st.selectbox(
-            "اختر المنتج المراد حذفه:",
-            options=[item["اسم المنتج / المادة"] for item in st.session_state.inventory]
-        )
-        if st.button("حذف المنتج المحدد", type="primary"):
-            st.session_state.inventory = [
-                item for item in st.session_state.inventory if item["اسم المنتج / المادة"] != item_to_delete
-            ]
-            st.success(f"تم حذف {item_to_delete} بنجاح.")
-            st.rerun()
+    st.subheader("📋 جدول المواد الخام المتوفرة")
+    if st.session_state.inventory:
+        st.dataframe(pd.DataFrame(st.session_state.inventory), use_container_width=True)
     else:
-        st.warning("المخزن فارغ حالياً. قم بإضافة عناصر جديدة أعلاه.")
+        st.warning("لا توجد مواد خام حالياً.")
 
-# --- 3. قسم الحسابات والسندات ---
+# --- 3. قسم منتجات المعمل والإنتاج (ربط المنتجات بالمواد الخام) ---
+elif menu == "منتجات المعمل والإنتاج":
+    st.title("🛠️ إدارة منتجات المعمل وخطوط الإنتاج")
+    
+    raw_materials_list = [item["اسم المادة الخام"] for item in st.session_state.inventory]
+    
+    if not raw_materials_list:
+        st.error("⚠️ يجب إضافة مواد خام في قسم المخزن أولاً حتى تتمكن من إضافة وتصنيع المنتجات.")
+    else:
+        # 1. إضافة منتج جديد وتحديد المادة الخام التي يستهلكها
+        with st.expander("➕ تعريف منتج جديد وتحديد المواد المستهلكة", expanded=True):
+            with st.form("add_product_form", clear_on_submit=True):
+                col_p1, col_p2, col_p3 = st.columns(3)
+                with col_p1:
+                    p_name = st.text_input("اسم المنتج الذي ينتجه المعمل")
+                with col_p2:
+                    selected_raw = st.selectbox("المادة الخام التي يستهلكها:", options=raw_materials_list)
+                with col_p3:
+                    raw_needed = st.number_input("كم مادة خام تستهلك القطعة الواحدة؟", min_value=1, value=1)
+                
+                if st.form_submit_button("تسجيل المنتج"):
+                    if p_name.strip():
+                        st.session_state.products.append({
+                            "اسم المنتج النهائي": p_name,
+                            "المادة الخام المستهلكة": selected_raw,
+                            "الكمية المستهلكة للقطعة": raw_needed,
+                            "المخزون الحالي": 0
+                        })
+                        st.success(f"تم تعريف منتج ({p_name}) وتحديده لاستهلاك ({raw_needed} من {selected_raw}) لكل قطعة.")
+                        st.rerun()
+
+        st.divider()
+
+        # 2. خط الإنتاج (تصنيع الكميات وخصم المواد الخام أوتوماتيكياً)
+        st.subheader("🏭 تسجيل عملية إنتاج جديدة (خصم تلقائي من المخزن)")
+        if st.session_state.products:
+            prod_names = [p["اسم المنتج النهائي"] for p in st.session_state.products]
+            
+            c_prod, c_qty, c_btn = st.columns([2, 2, 1])
+            with c_prod:
+                selected_p_to_make = st.selectbox("اختر المنتج للإنتاج:", options=prod_names)
+            with c_qty:
+                qty_to_make = st.number_input("الكمية المراد تصنيعها:", min_value=1, value=10)
+            
+            with c_btn:
+                st.write("")
+                st.write("")
+                if st.button("بدء الإنتاج 🚀", type="primary"):
+                    # البحث عن المنتج والمعادلة
+                    prod_info = next(p for p in st.session_state.products if p["اسم المنتج النهائي"] == selected_p_to_make)
+                    needed_material = prod_info["المادة الخام المستهلكة"]
+                    total_material_needed = prod_info["الكمية المستهلكة للقطعة"] * qty_to_make
+                    
+                    # البحث عن المادة الخام في المخزن
+                    raw_item = next((r for r in st.session_state.inventory if r["اسم المادة الخام"] == needed_material), None)
+                    
+                    if raw_item and raw_item["الكمية"] >= total_material_needed:
+                        # 1. خصم المادة الخام من المخزن
+                        raw_item["الكمية"] -= total_material_needed
+                        raw_item["إجمالي القيمة ($)"] = raw_item["الكمية"] * raw_item["سعر الوحدة ($)"]
+                        
+                        # 2. زيادة مخزون المنتج النهائي
+                        prod_info["المخزون الحالي"] += qty_to_make
+                        
+                        st.success(f"تم تصنيع {qty_to_make} قطعة من ({selected_p_to_make}) بنجاح! وتم خصم {total_material_needed} من مادة ({needed_material}) من المخزن.")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ المادة الخام غير كافية! تحتاج {total_material_needed} من ({needed_material}) بينما المتاح في المخزن هو {raw_item['الكمية'] if raw_item else 0}.")
+
+        # 3. جدول المنتجات الحالية
+        st.subheader("📦 قائمة منتجات المعمل والمخزون الحالي")
+        if st.session_state.products:
+            st.dataframe(pd.DataFrame(st.session_state.products), use_container_width=True)
+
+# --- 4. قسم الحسابات والسندات ---
 elif menu == "الحسابات والسندات":
     st.title("💰 قسم الحسابات والسندات المالية")
     
@@ -196,9 +245,3 @@ elif menu == "الحسابات والسندات":
         mime="application/pdf",
         type="primary"
     )
-
-# --- 4. قسم الإنتاج ---
-elif menu == "إدارة الإنتاج والطلبيات":
-    st.title("📦 إدارة الإنتاج والطلبيات")
-    st.subheader("سجل الطلبيات الحالية")
-    st.info("هنا يتم عرض وتحديث خطوط الإنتاج والطلبيات الخاصة بالعملاء.")
