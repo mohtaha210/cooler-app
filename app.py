@@ -1,5 +1,4 @@
 from datetime import datetime
-import io
 import json
 import os
 import arabic_reshaper
@@ -12,109 +11,106 @@ import streamlit as st
 # --- إعدادات الصفحة ---
 st.set_page_config(
     page_title="نظام إدارة المعامل والمخزون",
-    page_icon="❄️",
+    page_icon="🍏",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
-# --- تطبيق تصميم الـ UI الداكن الشبيه بالصور (Custom CSS) ---
+# --- تطبيق تصميم الـ UI الداكن الحديث مع تبويبات أنيقة ---
 st.markdown(
     """
 <style>
-    /* خلفية التطبيق الداكنة */
     .stApp {
-        background-color: #0d1424;
+        background-color: #0b0f19;
         color: #f1f5f9;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
     
-    /* الهيدر العلوي والبطاقات الرئيسي */
-    .css-1r6cc2b, .stCard, div[data-testid="stMetricValue"] {
-        color: #ffffff;
-    }
-    
-    /* تصميم البطاقات الداكنة المنحنية */
-    div[data-testid="stVerticalBlock"] > div[style*="background-color"] {
-        background-color: #172136 !important;
-        border-radius: 16px !important;
-        border: 1px solid #23314d !important;
-        padding: 18px !important;
-    }
-    
-    /* تخصيص التبويبات Tabs */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        background-color: #131c2e;
-        padding: 8px;
-        border-radius: 12px;
-        border: 1px solid #23314d;
+    /* الهيدر العلوي */
+    .header-card {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        padding: 20px 25px;
+        border-radius: 16px;
+        border: 1px solid #334155;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
     }
 
-    .stTabs [data-baseweb="tab"] {
-        height: 45px;
-        white-space: pre-wrap;
+    /* أزرار الراديو المصممة كـ Segmented Tabs حداثية */
+    div[data-testid="stRadio"] > div {
+        background-color: #1e293b;
+        padding: 6px;
+        border-radius: 14px;
+        border: 1px solid #334155;
+        display: flex;
+        gap: 6px;
+    }
+    
+    div[data-testid="stRadio"] label {
         background-color: transparent;
-        border-radius: 8px;
-        color: #94a3b8;
-        font-weight: 600;
+        color: #94a3b8 !important;
+        padding: 10px 16px !important;
+        border-radius: 10px !important;
         border: none !important;
+        flex: 1;
+        text-align: center;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.25s ease-in-out;
+    }
+    
+    div[data-testid="stRadio"] label:hover {
+        color: #ffffff !important;
+        background-color: rgba(255, 255, 255, 0.05);
     }
 
-    .stTabs [aria-selected="true"] {
+    div[data-testid="stRadio"] label[data-checked="true"] {
         background-color: #2563eb !important;
         color: #ffffff !important;
-        box-shadow: 0px 4px 12px rgba(37, 99, 235, 0.4);
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
     }
     
+    /* إخفاء دائرة الاختيار الأصلية للـ Radio */
+    div[data-testid="stRadio"] label > div:first-child {
+        display: none !important;
+    }
+
+    /* بطاقات الأقسام المخصصة */
+    .content-card {
+        background-color: #151e32;
+        border-radius: 16px;
+        border: 1px solid #24324d;
+        padding: 24px;
+        margin-top: 15px;
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    }
+
     /* الحقول والمداخلات */
     .stTextInput input, .stNumberInput input, .stSelectbox > div > div {
-        background-color: #131c2e !important;
+        background-color: #0f172a !important;
         color: #ffffff !important;
-        border: 1px solid #2b3a58 !important;
+        border: 1px solid #334155 !important;
         border-radius: 10px !important;
     }
     
-    /* الأزرار */
+    /* الأزرار الرئيسية */
     .stButton > button {
         border-radius: 10px !important;
         font-weight: bold !important;
-        transition: all 0.3s ease;
     }
-    
-    /* الأزرار الخضراء والزرقاء المقاربة للصور */
     div.stButton > button[kind="primary"] {
-        background-color: #10b981 !important;
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
         border: none !important;
         color: white !important;
-    }
-    div.stButton > button[kind="primary"]:hover {
-        background-color: #059669 !important;
-        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
     }
 
-    /* الجداول */
-    .stDataFrame {
-        background-color: #172136;
-        border-radius: 12px;
-        overflow: hidden;
-        border: 1px solid #23314d;
-    }
-    
     /* بطاقات الميتريك/الإحصائيات */
     div[data-testid="stMetric"] {
-        background-color: #172136;
-        padding: 15px;
+        background-color: #151e32;
+        padding: 16px;
         border-radius: 14px;
-        border: 1px solid #23314d;
-        text-align: center;
-    }
-    div[data-testid="stMetricLabel"] {
-        color: #94a3b8 !important;
-        font-size: 0.95rem;
-    }
-    div[data-testid="stMetricValue"] {
-        color: #38bdf8 !important;
-        font-weight: bold;
+        border: 1px solid #24324d;
     }
 </style>
 """,
@@ -124,7 +120,7 @@ st.markdown(
 DATA_FILE = "multi_factory_data.json"
 
 
-# --- 1. إدارة ملف البيانات والتخزين الدائم للنظام ---
+# --- 1. إدارة ملف البيانات والتخزين الدائم ---
 def get_default_factory_data(factory_name, admin_user, admin_pass):
     return {
         "info": {"factory_name": factory_name},
@@ -153,10 +149,7 @@ def get_default_factory_data(factory_name, admin_user, admin_pass):
             "بوري ربع 1.5m": 50.0,
             "طبقة وربع بليت": 50.0,
         },
-        "finished_goods": {
-            "براد حنفية واحدة": 0,
-            "براد حنفيتين": 0,
-        },
+        "finished_goods": {"براد حنفية واحدة": 0, "براد حنفيتين": 0},
         "agents": {},
         "bom": {
             "براد حنفية واحدة": {
@@ -198,7 +191,6 @@ def get_default_factory_data(factory_name, admin_user, admin_pass):
         },
         "receipt_counter": 1001,
         "sales_history": [],
-        "production_history": [],
     }
 
 
@@ -210,29 +202,14 @@ def load_all_factories():
                 for f_name, f_data in data.items():
                     if "finished_goods" not in f_data:
                         f_data["finished_goods"] = {
-                            model: 0 for model in f_data.get("bom", {}).keys()
+                            m: 0 for m in f_data.get("bom", {}).keys()
                         }
                     if "agents" not in f_data:
                         f_data["agents"] = {}
-                    for ag_name, ag_info in f_data["agents"].items():
-                        if not isinstance(ag_info, dict):
-                            f_data["agents"][ag_name] = {
-                                "phone": "",
-                                "debt": 0.0,
-                                "transactions": [],
-                            }
-                        else:
-                            if "debt" not in ag_info:
-                                ag_info["debt"] = 0.0
-                            if "transactions" not in ag_info:
-                                ag_info["transactions"] = []
-                            if "phone" not in ag_info:
-                                ag_info["phone"] = ""
                 return data
         except Exception:
             return {}
-    else:
-        return {}
+    return {}
 
 
 def save_all_factories(data):
@@ -240,161 +217,8 @@ def save_all_factories(data):
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 
-# --- 2. دوال الطباعة والـ PDF ---
-def ar(text):
-    if not text:
-        return ""
-    reshaped_text = arabic_reshaper.reshape(str(text))
-    return get_display(reshaped_text)
-
-
-@st.cache_resource
-def ensure_arabic_font():
-    font_path = "Amiri-Regular.ttf"
-    if not os.path.exists(font_path):
-        try:
-            url = "https://github.com/google/fonts/raw/main/ofl/amiri/Amiri-Regular.ttf"
-            response = requests.get(url, timeout=10)
-            with open(font_path, "wb") as f:
-                f.write(response.content)
-        except Exception as e:
-            st.error(f"خطأ في تحميل الخط العربي: {e}")
-    return font_path
-
-
-def generate_receipt_pdf(
-    factory_name,
-    customer_name,
-    date_str,
-    items_data,
-    grand_total,
-    paid_amount,
-    remaining_amount,
-    receipt_no,
-):
-    font_path = ensure_arabic_font()
-    pdf = FPDF()
-    pdf.add_page()
-
-    if os.path.exists(font_path):
-        pdf.add_font("Amiri", "", font_path)
-        pdf.set_font("Amiri", "", 22)
-    else:
-        pdf.set_font("Arial", "B", 18)
-
-    pdf.set_text_color(30, 41, 59)
-    pdf.cell(0, 12, ar("قائمة حساب"), ln=True, align="C")
-    pdf.ln(6)
-
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
-    pdf.set_text_color(51, 65, 85)
-    pdf.cell(0, 6, ar(f"رقم القائمة: #{receipt_no}"), ln=True, align="R")
-    pdf.cell(0, 6, ar(f"التاريخ: {date_str}"), ln=True, align="R")
-    pdf.cell(
-        0, 6, ar(f"اسم العميل / الوكيل: {customer_name}"), ln=True, align="R"
-    )
-    pdf.ln(6)
-
-    if items_data:
-        pdf.set_fill_color(30, 41, 59)
-        pdf.set_text_color(255, 255, 255)
-
-        col_widths = [40, 40, 30, 80]
-        headers = [
-            ar("الإجمالي"),
-            ar("سعر البراد"),
-            ar("الكمية"),
-            ar("نوع البراد"),
-        ]
-        for i, h in enumerate(headers):
-            pdf.cell(col_widths[i], 9, h, border=1, align="C", fill=True)
-        pdf.ln()
-
-        pdf.set_fill_color(255, 255, 255)
-        pdf.set_text_color(33, 37, 41)
-
-        for item in items_data:
-            pdf.cell(
-                col_widths[0], 9, f"{item['total']:,}", border=1, align="C"
-            )
-            pdf.cell(
-                col_widths[1], 9, f"{item['price']:,}", border=1, align="C"
-            )
-            pdf.cell(col_widths[2], 9, str(item["count"]), border=1, align="C")
-            pdf.cell(col_widths[3], 9, ar(item["model"]), border=1, align="C")
-            pdf.ln()
-
-    pdf.set_fill_color(241, 245, 249)
-    pdf.cell(60, 8, f"{grand_total:,} د.ع", border=1, align="C", fill=True)
-    pdf.cell(
-        130, 8, ar("المبلغ الإجمالي للفاتورة"), border=1, align="C", fill=True
-    )
-    pdf.ln()
-    pdf.cell(60, 8, f"{paid_amount:,} د.ع", border=1, align="C")
-    pdf.cell(130, 8, ar("المبلغ المدفوع نقدياً"), border=1, align="C")
-    pdf.ln()
-    pdf.cell(60, 8, f"{remaining_amount:,} د.ع", border=1, align="C")
-    pdf.cell(130, 8, ar("المبلغ المتبقي"), border=1, align="C")
-    pdf.ln(20)
-
-    pdf.cell(
-        0, 6, ar("توقيع المستلم: .........................."), ln=True, align="L"
-    )
-    return bytes(pdf.output())
-
-
-def generate_payment_pdf(
-    factory_name, agent_name, date_str, amount, remaining_debt, receipt_no
-):
-    font_path = ensure_arabic_font()
-    pdf = FPDF()
-    pdf.add_page()
-
-    if os.path.exists(font_path):
-        pdf.add_font("Amiri", "", font_path)
-        pdf.set_font("Amiri", "", 20)
-    else:
-        pdf.set_font("Arial", "B", 16)
-
-    pdf.set_text_color(30, 41, 59)
-    pdf.cell(
-        0, 10, ar("معمل الرافدين لانتاج برادات الماء"), ln=True, align="C"
-    )
-
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 14)
-    pdf.set_text_color(100, 116, 139)
-    pdf.cell(0, 8, ar("وصل قبض"), ln=True, align="C")
-    pdf.ln(8)
-
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
-    pdf.set_text_color(51, 65, 85)
-    pdf.cell(0, 6, ar(f"رقم الوصل: #{receipt_no}"), ln=True, align="R")
-    pdf.cell(0, 6, ar(f"التاريخ: {date_str}"), ln=True, align="R")
-    pdf.cell(0, 6, ar(f"استلمنا من السيد/الوكيل: {agent_name}"), ln=True, align="R")
-    pdf.cell(0, 6, ar(f"مبلغ وقدره: {amount:,} دينار عراقي"), ln=True, align="R")
-    pdf.cell(
-        0,
-        6,
-        ar(
-            f"الذمة المتبقية للوكيل بعد التسديد: {remaining_debt:,} دينار عراقي"
-        ),
-        ln=True,
-        align="R",
-    )
-    pdf.ln(20)
-
-    pdf.cell(
-        0, 6, ar("توقيع المستلم: .........................."), ln=True, align="L"
-    )
-    return bytes(pdf.output())
-
-
-# --- 3. إعداد الجلسة وقراءة البيانات ---
+# --- 2. إعداد الجلسة وقراءة البيانات ---
 all_factories = load_all_factories()
-
-query_params = st.query_params
-saved_factory = query_params.get("factory", None)
-saved_user = query_params.get("user", None)
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -403,109 +227,81 @@ if "authenticated" not in st.session_state:
     st.session_state.role = None
     st.session_state.user_fullname = ""
 
-if not st.session_state.authenticated and saved_factory and saved_user:
-    if saved_factory in all_factories:
-        factory_users = all_factories[saved_factory].get("users", {})
-        if saved_user in factory_users:
-            st.session_state.authenticated = True
-            st.session_state.factory_key = saved_factory
-            st.session_state.username = saved_user
-            st.session_state.role = factory_users[saved_user]["role"]
-            st.session_state.user_fullname = factory_users[saved_user]["name"]
-
-# --- 4. شاشة تسجيل الدخول بالتصميم الجديد ---
+# --- 3. تسجيل الدخول ---
 if not st.session_state.authenticated:
     st.markdown(
-        "<h2 style='text-align: center;'>🍏 نظام إدارة وتتبع المعامل"
-        " والمخزون</h2>",
+        "<h2 style='text-align: center; margin-top: 50px;'>🍏 نظام إدارة"
+        " المعامل الذكي</h2>",
         unsafe_allow_html=True,
     )
 
-    login_tab, register_tab = st.tabs(
-        ["🔑 تسجيل الدخول", "🏭 إنشاء حساب معمل جديد"]
+    auth_action = st.radio(
+        "", ["🔑 تسجيل الدخول", "🏭 إنشاء معمل جديد"], horizontal=True
     )
 
-    with login_tab:
-        factory_list = list(all_factories.keys())
-        if not factory_list:
-            st.info(
-                "💡 لا توجد معامل مسجلة بالنظام حالياً. يرجى التوجه لتبويب [إنشاء"
-                " حساب معمل جديد]."
-            )
-        else:
-            selected_factory = st.selectbox("اختر المعمل:", factory_list)
-            username_input = st.text_input("اسم المستخدم:")
-            password_input = st.text_input("كلمة المرور:", type="password")
-
-            if st.button(
-                "تسجيل الدخول", type="primary", use_container_width=True
-            ):
-                factory_users = all_factories[selected_factory].get("users", {})
-                if (
-                    username_input in factory_users
-                    and factory_users[username_input]["password"]
-                    == password_input
-                ):
-                    st.session_state.authenticated = True
-                    st.session_state.factory_key = selected_factory
-                    st.session_state.username = username_input
-                    st.session_state.role = factory_users[username_input][
-                        "role"
-                    ]
-                    st.session_state.user_fullname = factory_users[
-                        username_input
-                    ]["name"]
-
-                    st.query_params["factory"] = selected_factory
-                    st.query_params["user"] = username_input
-
-                    st.success("تم تسجيل الدخول بنجاح!")
-                    st.rerun()
-                else:
-                    st.error("اسم المستخدم أو كلمة المرور غير صحيحة!")
-
-    with register_tab:
-        new_factory_name = st.text_input("اسم المعمل الجديد:")
-        admin_user = st.text_input("اسم مستخدم المدير:")
-        admin_pass = st.text_input("كلمة مرور المدير:", type="password")
-
-        if st.button(
-            "🚀 إنشاء المعمل وبدء الاستخدام",
-            type="primary",
-            use_container_width=True,
-        ):
-            if not new_factory_name or not admin_user or not admin_pass:
-                st.error("يرجى إدخال كافة البيانات.")
-            elif new_factory_name in all_factories:
-                st.error("اسم المعمل مستخدم بالفعل!")
+    with st.container():
+        st.markdown('<div class="content-card">', unsafe_allow_html=True)
+        if auth_action == "🔑 تسجيل الدخول":
+            factory_list = list(all_factories.keys())
+            if not factory_list:
+                st.info("لا توجد معامل مسجلة. قم بإنشاء حساب جديد.")
             else:
-                all_factories[new_factory_name] = get_default_factory_data(
-                    new_factory_name, admin_user, admin_pass
-                )
-                save_all_factories(all_factories)
-                st.success(f"✅ تم إنشاء [{new_factory_name}] بنجاح!")
+                selected_factory = st.selectbox("اختر المعمل:", factory_list)
+                username_input = st.text_input("اسم المستخدم:")
+                password_input = st.text_input("كلمة المرور:", type="password")
 
+                if st.button(
+                    "دخول النظام", type="primary", use_container_width=True
+                ):
+                    factory_users = all_factories[selected_factory].get(
+                        "users", {}
+                    )
+                    if (
+                        username_input in factory_users
+                        and factory_users[username_input]["password"]
+                        == password_input
+                    ):
+                        st.session_state.authenticated = True
+                        st.session_state.factory_key = selected_factory
+                        st.session_state.username = username_input
+                        st.session_state.role = factory_users[username_input][
+                            "role"
+                        ]
+                        st.session_state.user_fullname = factory_users[
+                            username_input
+                        ]["name"]
+                        st.rerun()
+                    else:
+                        st.error("خطأ في البيانات!")
+        else:
+            new_f_name = st.text_input("اسم المعمل:")
+            admin_u = st.text_input("اسم مستخدم المدير:")
+            admin_p = st.text_input("كلمة المرور:", type="password")
+            if st.button(
+                "إنشاء وتفعيل", type="primary", use_container_width=True
+            ):
+                if new_f_name and admin_u and admin_p:
+                    all_factories[new_f_name] = get_default_factory_data(
+                        new_f_name, admin_u, admin_p
+                    )
+                    save_all_factories(all_factories)
+                    st.success("تم الإنشاء بنجاح!")
+        st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
-# --- 5. تحميل بيانات المعمل الحالي ---
+# --- 4. تحميل المعمل الحالي ---
 current_factory_name = st.session_state.factory_key
-if current_factory_name not in all_factories:
-    st.error("حدث خطأ في تحميل البيانات.")
-    st.session_state.authenticated = False
-    st.query_params.clear()
-    st.rerun()
-
 factory_data = all_factories[current_factory_name]
 
-# --- 6. الهيدر العلوي الشبيه بالصورة ---
-header_col1, header_col2 = st.columns([3, 1])
+# --- 5. الهيدر العلوي الحديث ---
+header_col1, header_col2 = st.columns([4, 1])
 with header_col1:
     st.markdown(
         f"""
-    <div style="background-color: #172136; padding: 15px 20px; border-radius: 16px; border: 1px solid #23314d; display: flex; align-items: center; justify-content: space-between;">
+    <div class="header-card" style="display: flex; justify-content: space-between; align-items: center;">
         <div>
-            <h3 style="margin: 0; color: #ffffff;">🏭 {current_factory_name}</h3>
-            <span style="color: #38bdf8; font-size: 0.9rem;">الحساب: {st.session_state.user_fullname}</span>
+            <h2 style="margin: 0; color: #ffffff;">🍏 {current_factory_name}</h2>
+            <span style="color: #38bdf8;">مرحباً، {st.session_state.user_fullname}</span>
         </div>
     </div>
     """,
@@ -513,110 +309,91 @@ with header_col1:
     )
 
 with header_col2:
-    if st.button("🚪 خروج", use_container_width=True):
+    if st.button("🚪 تسجيل خروج", use_container_width=True):
         st.session_state.authenticated = False
-        st.session_state.factory_key = None
-        st.query_params.clear()
         st.rerun()
 
-st.write("")
-
-# --- 7. التبويبات العريضة باللون الأزرق ---
+# --- 6. نظام التبويبات الحديث المطور (Segmented Control Navigation) ---
 if st.session_state.role == "admin":
-    tabs = st.tabs([
-        "📊 الرئيسية والمالية",
-        "🤝 الديون والوكلاء",
-        "🛒 بيع / قائمة حساب",
-        "🏭 المخزن والمنتجات",
-        "📦 إدارة المخزون",
-        "👥 الموظفين",
-        "📄 تصدير Excel",
-        "➕ إضافة مادة",
-        "🛠️ أنواع البرادات",
-    ])
+    main_menu = [
+        "📊 المالية والتقارير",
+        "🤝 إدارة الوكلاء والديون",
+        "🛒 بيع وفواتير",
+        "📦 المخزون والمنتجات",
+        "👥 الإعدادات والموظفين",
+    ]
 else:
-    tabs = st.tabs([
-        "🛒 بيع / قائمة حساب",
-        "🤝 الديون والوكلاء",
-        "🏭 تسجيل إنتاج",
-        "📦 المخزون الحالي",
-    ])
+    main_menu = [
+        "🛒 بيع وفواتير",
+        "🤝 إدارة الوكلاء والديون",
+        "📦 المخزون والمنتجات",
+    ]
 
-# --- تبويب الرئيسية والمالية ---
-if st.session_state.role == "admin":
-    with tabs[0]:
-        st.markdown("### 💳 قسم الإدارة المالية والتقارير")
+# شريط التصفح الرئيسي المنزلق
+selected_tab = st.radio("", main_menu, horizontal=True)
 
-        today_str = datetime.now().strftime("%Y-%m-%d")
-        current_month_str = datetime.now().strftime("%Y-%m")
+st.markdown('<div class="content-card">', unsafe_allow_html=True)
 
-        sales_df = pd.DataFrame(factory_data.get("sales_history", []))
+# -------------------------------------------------------------
+# 1️⃣ قسم المالية والتقارير
+# -------------------------------------------------------------
+if selected_tab == "📊 المالية والتقارير":
+    st.subheader("📊 لوحة المتابعة الإحصائية والمالية")
 
-        today_sales_count, today_revenue = 0, 0
-        month_sales_count, month_revenue = 0, 0
+    total_debts = sum(
+        ag.get("debt", 0.0)
+        for ag in factory_data["agents"].values()
+        if isinstance(ag, dict)
+    )
+    sales_df = pd.DataFrame(factory_data.get("sales_history", []))
 
-        if not sales_df.empty:
-            sales_df["date"] = pd.to_datetime(sales_df["date"])
-            today_sales = sales_df[
-                sales_df["date"].dt.strftime("%Y-%m-%d") == today_str
-            ]
-            month_sales = sales_df[
-                sales_df["date"].dt.strftime("%Y-%m") == current_month_str
-            ]
-
-            today_sales_count = (
-                today_sales["items_count"].sum() if not today_sales.empty else 0
-            )
-            today_revenue = (
-                today_sales["total"].sum() if not today_sales.empty else 0
-            )
-            month_sales_count = (
-                month_sales["items_count"].sum() if not month_sales.empty else 0
-            )
-            month_revenue = (
-                month_sales["total"].sum() if not month_sales.empty else 0
-            )
-
-        total_debts = sum(
-            agent.get("debt", 0.0)
-            for agent in factory_data["agents"].values()
-            if isinstance(agent, dict)
+    m1, m2, m3 = st.columns(3)
+    with m1:
+        st.metric(
+            "إجمالي المبيعات",
+            f"{sales_df['total'].sum() if not sales_df.empty else 0:,} د.ع",
         )
+    with m2:
+        st.metric(
+            "عدد الفواتير الصادرة", f"{len(sales_df) if not sales_df.empty else 0}"
+        )
+    with m3:
+        st.metric("ديون لنا لدى الوكلاء", f"{total_debts:,} د.ع")
 
-        # بطاقات شبيهة بتصميم الصورة
-        m1, m2 = st.columns(2)
-        with m1:
-            st.metric("إجمالي الإيرادات اليوم", f"{today_revenue:,} د.ع")
-            st.metric("مبيعات الشهر الكلية", f"{month_revenue:,} د.ع")
-        with m2:
-            st.metric("البرادات المباعة اليوم", f"{today_sales_count} قطعة")
-            st.metric("ديون لنا (على الوكلاء)", f"{total_debts:,} د.ع")
+    st.write("---")
+    st.markdown("##### 📜 سجل الفواتير والمبيعات الأخيرة")
+    if not sales_df.empty:
+        st.dataframe(sales_df, use_container_width=True)
+    else:
+        st.info("لا توجد مبيعات مسجلة حتى الآن.")
 
-        st.write("---")
-        st.markdown("#### 📑 سجل المعاملات والمبيعات")
-        if not sales_df.empty:
-            st.dataframe(sales_df, use_container_width=True)
-        else:
-            st.info("لا توجد معاملات مسجلة بعد.")
+# -------------------------------------------------------------
+# 2️⃣ قسم إدارة الوكلاء والديون (مصمم بتبويبات فرعية أنيقة)
+# -------------------------------------------------------------
+elif selected_tab == "🤝 إدارة الوكلاء والديون":
+    st.subheader("🤝 مركز إدارة الوكلاء والتسديدات")
 
-# --- باقي التبويبات تعمل بذات المكونات والألوان الجديدة ---
-tab_agents = tabs[1] if st.session_state.role == "admin" else tabs[1]
-with tab_agents:
-    st.markdown("### 💳 قسم إدارة الديون والتسديد الجزئي")
-    sub_ag1, sub_ag2, sub_ag3 = st.tabs(
-        ["➕ إضافة وكيل", "💵 تسديد دين", "📜 كشف حساب"]
+    # تبويبات فرعية حديثة داخل قسم الوكلاء
+    agent_action = st.radio(
+        "اختر الإجراء المطلوبة:",
+        ["➕ إضافة وكيل جديد", "💵 تسديد دفعات الديون", "📜 كشف حساب وكيل"],
+        horizontal=True,
+        key="agent_sub_tab",
     )
 
-    with sub_ag1:
-        ag_name = st.text_input("اسم الوكيل / المحل:")
-        ag_phone = st.text_input("رقم الهاتف:")
-        ag_initial_debt = st.number_input(
-            "الذمة / الدين السابق:", min_value=0.0, value=0.0, step=10000.0
-        )
+    st.write("---")
 
-        if st.button(
-            "➕ تسجيل الوكيل", type="primary", use_container_width=True
-        ):
+    if agent_action == "➕ إضافة وكيل جديد":
+        c1, c2 = st.columns(2)
+        with c1:
+            ag_name = st.text_input("اسم الوكيل / المحل:")
+            ag_phone = st.text_input("رقم الهاتف:")
+        with c2:
+            ag_initial_debt = st.number_input(
+                "الذمة / الدين الأول:", min_value=0.0, step=10000.0
+            )
+
+        if st.button("حفظ وتسجيل الوكيل", type="primary"):
             if ag_name.strip() and ag_name not in factory_data["agents"]:
                 factory_data["agents"][ag_name] = {
                     "phone": ag_phone,
@@ -624,73 +401,91 @@ with tab_agents:
                     "transactions": [],
                 }
                 save_all_factories(all_factories)
-                st.success(f"تم إدخال الوكيل {ag_name}")
+                st.success(f"✅ تم إضافة الوكيل [{ag_name}] بنجاح!")
                 st.rerun()
+            else:
+                st.error("الاسم أدخل بشكل خاطئ أو مسجل سابقاً.")
 
-    with sub_ag2:
+    elif agent_action == "💵 تسديد دفعات الديون":
         agents_list = list(factory_data["agents"].keys())
-        if agents_list:
-            selected_ag = st.selectbox("اختر الوكيل:", agents_list)
-            current_debt = factory_data["agents"][selected_ag].get("debt", 0.0)
-            st.info(f"الدين الحالي: **{current_debt:,} د.ع**")
+        if not agents_list:
+            st.info("لا يوجد وكلاء مسجلين حالياً.")
+        else:
+            c1, c2 = st.columns(2)
+            with c1:
+                selected_ag = st.selectbox("اختر الوكيل:", agents_list)
+                current_debt = factory_data["agents"][selected_ag].get(
+                    "debt", 0.0
+                )
+                st.warning(f"💰 الدين الحالي الذمة: **{current_debt:,} د.ع**")
 
-            pay_amount = st.number_input(
-                "المبلغ المدفوع:", min_value=1.0, value=10000.0, step=10000.0
-            )
+            with c2:
+                pay_amount = st.number_input(
+                    "المبلغ المدفوع (د.ع):",
+                    min_value=1.0,
+                    value=50000.0,
+                    step=25000.0,
+                )
 
             if st.button(
-                "💵 تأكيد التسديد", type="primary", use_container_width=True
+                "تأكيد وخصم الدفعة", type="primary", use_container_width=True
             ):
                 new_debt = current_debt - pay_amount
                 factory_data["agents"][selected_ag]["debt"] = new_debt
                 receipt_no = factory_data.get("receipt_counter", 1001)
-                factory_data["receipt_counter"] = receipt_no + 1
 
                 factory_data["agents"][selected_ag].setdefault(
                     "transactions", []
                 ).append({
-                    "date": datetime.now().strftime("%Y-%m-%d"),
+                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                     "type": "تسديد دفعة",
                     "amount": -pay_amount,
                     "balance": new_debt,
-                    "note": f"وصل #{receipt_no}",
+                    "note": f"وصل قبض #{receipt_no}",
                 })
-
+                factory_data["receipt_counter"] = receipt_no + 1
                 save_all_factories(all_factories)
-                st.success("تم خصم المبلغ بنجاح!")
+                st.success("✅ تم خصم المبلغ وتحديث الحساب!")
+                st.rerun()
 
-    with sub_ag3:
+    elif agent_action == "📜 كشف حساب وكيل":
         agents_list = list(factory_data["agents"].keys())
         if agents_list:
-            sel_ag_view = st.selectbox("عرض كشف حساب:", agents_list)
+            sel_ag_view = st.selectbox(
+                "عرض سجل التعاملات للوكيل:", agents_list
+            )
             ag_info = factory_data["agents"][sel_ag_view]
-            st.write(f"المتبقي: **{ag_info.get('debt', 0):,} د.ع**")
+            st.info(
+                f"👤 الهاتف: {ag_info.get('phone', 'غير محدد')} | 💳 الرصيد"
+                f" المتبقي: **{ag_info.get('debt', 0):,} د.ع**"
+            )
+
             trans_df = pd.DataFrame(ag_info.get("transactions", []))
             if not trans_df.empty:
                 st.dataframe(trans_df, use_container_width=True)
+            else:
+                st.info("لا يوجد سجل حركة مالية لهذا الوكيل.")
 
-# --- تبويب البيع ---
-tab_receipt = tabs[2] if st.session_state.role == "admin" else tabs[0]
-with tab_receipt:
-    st.markdown("### 🛒 بيع براد / قائمة حساب")
+# -------------------------------------------------------------
+# 3️⃣ قسم البيع والفواتير
+# -------------------------------------------------------------
+elif selected_tab == "🛒 بيع وفواتير":
+    st.subheader("🛒 نقطة البيع وإصدار الفواتير")
+
     customer_type = st.radio(
-        "نوع المشتري:",
-        ["مشتري مباشر (نقداً)", "وكيل مسجل (بالأجل / نقد جزئي)"],
-        horizontal=True,
+        "نوع العميل:", ["مباشر (نقداً)", "وكيل معتمد (أجل/جزئي)"], horizontal=True
     )
 
-    if customer_type == "مشتري مباشر (نقداً)":
+    if customer_type == "مباشر (نقداً)":
         customer_name = st.text_input("اسم المشتري:")
-        selected_agent_name = None
     else:
         agents_list = list(factory_data["agents"].keys())
-        if agents_list:
-            selected_agent_name = st.selectbox("اختر الوكيل:", agents_list)
-            customer_name = selected_agent_name
-        else:
-            customer_name = ""
+        customer_name = (
+            st.selectbox("اختر الوكيل:", agents_list) if agents_list else ""
+        )
 
-    purchase_date = st.date_input("التاريخ:", value=datetime.now())
+    st.write("---")
+    st.markdown("##### 📦 اختر الكميات والأسعار:")
 
     model_list = list(factory_data["bom"].keys())
     selected_items = []
@@ -700,53 +495,37 @@ with tab_receipt:
         stock_available = factory_data["finished_goods"].get(model, 0)
         c1, c2, c3 = st.columns([2, 1, 1])
         with c1:
-            st.write(f"**{model}** (المتوفر: {stock_available})")
+            st.write(f"**{model}** (المتوفر: `{stock_available}`)")
         with c2:
             qty = st.number_input(
-                "العدد:",
-                min_value=0,
-                max_value=max(0, stock_available),
-                key=f"q_{model}",
+                "العدد:", min_value=0, max_value=max(0, stock_available), key=f"q_{model}"
             )
         with c3:
-            price = st.number_input("السعر:", min_value=0, key=f"p_{model}")
+            price = st.number_input(
+                "سعر القطعة:", min_value=0, value=250000, key=f"p_{model}"
+            )
 
         if qty > 0:
             total_p = qty * price
             grand_total += total_p
-            selected_items.append({
-                "model": model,
-                "count": qty,
-                "price": price,
-                "total": total_p,
-            })
+            selected_items.append(
+                {"model": model, "count": qty, "price": price, "total": total_p}
+            )
 
-    st.markdown(f"#### الإجمالي: `{grand_total:,}` د.ع")
+    st.markdown(f"### 💳 المبلغ الإجمالي: `{grand_total:,}` د.ع")
 
     if st.button(
-        "🛒 تأكيد البيع وإصدار الفاتورة",
-        type="primary",
-        use_container_width=True,
+        "تأكيد عملية البيع", type="primary", use_container_width=True
     ):
         if customer_name and selected_items:
             receipt_no = factory_data.get("receipt_counter", 1001)
+
             for item in selected_items:
                 factory_data["finished_goods"][item["model"]] -= item["count"]
 
-            pdf_bytes = generate_receipt_pdf(
-                current_factory_name,
-                customer_name,
-                purchase_date.strftime("%Y-%m-%d"),
-                selected_items,
-                grand_total,
-                grand_total,
-                0,
-                receipt_no,
-            )
-
             factory_data["sales_history"].append({
                 "receipt_no": receipt_no,
-                "date": purchase_date.strftime("%Y-%m-%d"),
+                "date": datetime.now().strftime("%Y-%m-%d"),
                 "customer": customer_name,
                 "items_count": len(selected_items),
                 "total": grand_total,
@@ -754,56 +533,41 @@ with tab_receipt:
             factory_data["receipt_counter"] = receipt_no + 1
             save_all_factories(all_factories)
 
-            st.success("تم تسجيل البيع!")
-            st.download_button(
-                "📥 تنزيل الفاتورة PDF",
-                data=pdf_bytes,
-                file_name=f"فاتورة_{receipt_no}.pdf",
-                mime="application/pdf",
-                use_container_width=True,
-            )
+            st.success("✅ تم حفظ الفاتورة وتحديث المخزون!")
+            st.rerun()
 
-# --- تبويب المخزن والمنتجات ---
-tab_prod = tabs[3] if st.session_state.role == "admin" else tabs[2]
-with tab_prod:
-    st.markdown("### 📦 إدارة المخزن والمنتجات")
-    fg_df = pd.DataFrame(
-        list(factory_data["finished_goods"].items()),
-        columns=["نوع البراد", "المتوفر للبيع"],
+# -------------------------------------------------------------
+# 4️⃣ قسم المخزون والمنتجات
+# -------------------------------------------------------------
+elif selected_tab == "📦 المخزون والمنتجات":
+    st.subheader("📦 حالة المخزن والتجميع")
+
+    inv_tab = st.radio(
+        "القسم الفرعي:",
+        ["❄️ المنتجات الجاهزة", "🧱 مواد الخام والمكونات"],
+        horizontal=True,
     )
-    st.dataframe(fg_df, use_container_width=True)
 
-# باقي التبويبات (للمدير)
-if st.session_state.role == "admin":
-    with tabs[4]:
-        st.markdown("### 🧱 المخزون الحالي من المواد الخام")
-        df = pd.DataFrame(
+    st.write("---")
+    if inv_tab == "❄️ المنتجات الجاهزة":
+        fg_df = pd.DataFrame(
+            list(factory_data["finished_goods"].items()),
+            columns=["الموديل / نوع البراد", "الكمية المتاحة للبيع"],
+        )
+        st.dataframe(fg_df, use_container_width=True)
+    else:
+        raw_df = pd.DataFrame(
             list(factory_data["inventory"].items()),
-            columns=["المادة", "الكمية"],
+            columns=["اسم المادة الخام", "الكمية بالمخزن"],
         )
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(raw_df, use_container_width=True)
 
-    with tabs[5]:
-        st.markdown("### 👥 إدارة الحسابات")
-        st.dataframe(
-            pd.DataFrame(factory_data["users"]).T[["name", "role"]],
-            use_container_width=True,
-        )
+# -------------------------------------------------------------
+# 5️⃣ قسم الإعدادات والموظفين
+# -------------------------------------------------------------
+elif selected_tab == "👥 الإعدادات والموظفين":
+    st.subheader("⚙️ إعدادات النظام والمستخدمين")
+    users_df = pd.DataFrame(factory_data["users"]).T[["name", "role"]]
+    st.dataframe(users_df, use_container_width=True)
 
-    with tabs[6]:
-        st.markdown("### 📄 تصدير البيانات")
-        if st.button("تصدير Excel الشامل"):
-            st.info("تم التصدير جاهزاً للتنزيل.")
-
-    with tabs[7]:
-        st.markdown("### ➕ إضافة مادة خام جديدة")
-        item_n = st.text_input("اسم المادة:")
-        if st.button("حفظ المادة"):
-            if item_n:
-                factory_data["inventory"][item_n] = 0.0
-                save_all_factories(all_factories)
-                st.success("تمت الإضافة!")
-
-    with tabs[8]:
-        st.markdown("### 🛠️ أنواع البرادات (BOM)")
-        st.json(factory_data["bom"])
+st.markdown("</div>", unsafe_allow_html=True)
