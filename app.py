@@ -208,8 +208,8 @@ if "authenticated" not in st.session_state:
 # --- الشاشة الأولى: تسجيل الدخول ---
 if not st.session_state.authenticated:
     st.markdown(
-        "<h2 style='text-align: center; color: #ffffff;'>🍏 معاش - إدارة"
-        " المعامل والديون</h2>",
+        "<h2 style='text-align: center; color: #ffffff;'>🏭 "
+        "منصة ادارة بيانات معمل الرافدين</h2>",
         unsafe_allow_html=True,
     )
 
