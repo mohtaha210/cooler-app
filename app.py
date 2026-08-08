@@ -11,7 +11,7 @@ import streamlit as st
 
 DATA_FILE = "multi_factory_data.json"
 
-# --- 1. إدارة ملف البيانات وتحديث الهيكلية للوكلاء ---
+# --- 1. إدارة ملف البيانات وتحديث الهيكلية للوكلاء والعملات ---
 def get_default_factory_data(factory_name, admin_user, admin_pass):
     return {
         "info": {"factory_name": factory_name},
@@ -38,8 +38,8 @@ def get_default_factory_data(factory_name, admin_user, admin_pass):
             "براد حنفية واحدة": {"الحنفية": 1, "البانكة": 1, "الماطور": 1},
             "براد حنفيتين": {"الحنفية": 2, "البانكة": 1, "الماطور": 1},
         },
-        "agents": {},            # دليل الوكلاء: {agent_name: {"phone": "", "balance": 0.0}}
-        "agent_ledger": [],      # كشف حساب الوكلاء: [{date, agent, type, amount, notes, balance_after}]
+        "agents": {},        # {agent_name: {"phone": "", "address": "", "balance_iqd": 0.0, "balance_usd": 0.0}}
+        "agent_ledger": [],  # [{date, agent, currency, type, amount, notes, balance_after}]
         "receipt_counter": 1001,
         "sales_history": [],
         "production_history": [],
@@ -57,6 +57,13 @@ def load_all_factories():
                         f_data["agents"] = {}
                     if "agent_ledger" not in f_data:
                         f_data["agent_ledger"] = []
+                    for a_name, a_info in f_data.get("agents", {}).items():
+                        if "address" not in a_info:
+                            a_info["address"] = "-"
+                        if "balance_iqd" not in a_info:
+                            a_info["balance_iqd"] = a_info.get("balance", 0.0)
+                        if "balance_usd" not in a_info:
+                            a_info["balance_usd"] = 0.0
                 return data
         except Exception:
             return {}
@@ -67,7 +74,7 @@ def save_all_factories(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# --- 2. دوال الطباعة والـ PDF المحدثة للوكلاء ---
+# --- 2. دوال الطباعة والـ PDF المحدثة ---
 def ar(text):
     if not text:
         return ""
@@ -83,21 +90,22 @@ def ensure_arabic_font():
             f.write(response.content)
     return font_path
 
+# أ) وصل تفريغ بضاعة ومبيعات وكيل
 def generate_agent_receipt_pdf(
-    factory_name, agent_name, date_str, items_data, current_total, prev_balance, paid_amount, final_balance, receipt_no
+    factory_name, agent_name, agent_address, date_str, items_data, current_total, prev_balance, paid_amount, final_balance, receipt_no, currency_symbol
 ):
     font_path = ensure_arabic_font()
     pdf = FPDF()
     pdf.add_page()
     pdf.add_font("Amiri", "", font_path)
 
-    pdf.set_font("Amiri", "", 20)
+    pdf.set_font("Amiri", "", 22)
     pdf.set_text_color(30, 41, 59)
     pdf.cell(0, 10, ar(factory_name), ln=True, align="C")
 
     pdf.set_font("Amiri", "", 12)
     pdf.set_text_color(100, 116, 139)
-    pdf.cell(0, 6, ar("وصل مبيعات وكيل وحساب مالي / Agent Invoice"), ln=True, align="C")
+    pdf.cell(0, 6, ar("وصل مبيعات وكيل وحساب مالي"), ln=True, align="C")
     pdf.ln(6)
 
     pdf.set_font("Amiri", "", 11)
@@ -105,9 +113,10 @@ def generate_agent_receipt_pdf(
     pdf.cell(0, 6, ar(f"رقم الوصل: #{receipt_no}"), ln=True, align="R")
     pdf.cell(0, 6, ar(f"التاريخ: {date_str}"), ln=True, align="R")
     pdf.cell(0, 6, ar(f"اسم الوكيل: {agent_name}"), ln=True, align="R")
+    pdf.cell(0, 6, ar(f"عنوان الوكيل: {agent_address}"), ln=True, align="R")
+    pdf.cell(0, 6, ar(f"عملة التعامل: {currency_symbol}"), ln=True, align="R")
     pdf.ln(6)
 
-    # جدول المواد
     pdf.set_fill_color(30, 41, 59)
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Amiri", "", 12)
@@ -131,29 +140,78 @@ def generate_agent_receipt_pdf(
 
     pdf.ln(5)
 
-    # ملخص الحساب المالي
     pdf.set_fill_color(241, 245, 249)
     pdf.set_font("Amiri", "", 11)
     
-    pdf.cell(100, 8, f"{current_total:,} " + ar("د.ع"), border=1, align="C")
+    pdf.cell(100, 8, f"{current_total:,} " + ar(currency_symbol), border=1, align="C")
     pdf.cell(90, 8, ar("قائمة البضاعة الحالية:"), border=1, align="R", fill=True)
     pdf.ln()
 
-    pdf.cell(100, 8, f"{prev_balance:,} " + ar("د.ع"), border=1, align="C")
+    pdf.cell(100, 8, f"{prev_balance:,} " + ar(currency_symbol), border=1, align="C")
     pdf.cell(90, 8, ar("الرصيد السابق (الديون السابقة):"), border=1, align="R", fill=True)
     pdf.ln()
 
-    pdf.cell(100, 8, f"{paid_amount:,} " + ar("د.ع"), border=1, align="C")
+    pdf.cell(100, 8, f"{paid_amount:,} " + ar(currency_symbol), border=1, align="C")
     pdf.cell(90, 8, ar("المبلغ الواصل (النقد المسدد):"), border=1, align="R", fill=True)
     pdf.ln()
 
     pdf.set_fill_color(226, 232, 240)
     pdf.set_font("Amiri", "", 12)
-    pdf.cell(100, 10, f"{final_balance:,} " + ar("د.ع"), border=1, align="C", fill=True)
+    pdf.cell(100, 10, f"{final_balance:,} " + ar(currency_symbol), border=1, align="C", fill=True)
     pdf.cell(90, 10, ar("الرصيد الكلي المطلوب من الوكيل:"), border=1, align="R", fill=True)
     pdf.ln(15)
 
     pdf.cell(0, 6, ar("توقيع الوكيل: ..........................         توقيع/ختم المعمل: .........................."), ln=True, align="C")
+    return bytes(pdf.output())
+
+# ب) وصل تسديد دين مستقل
+def generate_payment_receipt_pdf(
+    factory_name, agent_name, agent_address, date_str, paid_amount, prev_balance, new_balance, notes, currency_symbol, receipt_no
+):
+    font_path = ensure_arabic_font()
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.add_font("Amiri", "", font_path)
+
+    pdf.set_font("Amiri", "", 22)
+    pdf.set_text_color(30, 41, 59)
+    pdf.cell(0, 10, ar(factory_name), ln=True, align="C")
+
+    pdf.set_font("Amiri", "", 14)
+    pdf.set_text_color(16, 185, 129)
+    pdf.cell(0, 8, ar("وصل استلام وتسديد دفعة مالية"), ln=True, align="C")
+    pdf.ln(6)
+
+    pdf.set_font("Amiri", "", 11)
+    pdf.set_text_color(51, 65, 85)
+    pdf.cell(0, 6, ar(f"رقم الوصل: #{receipt_no}"), ln=True, align="R")
+    pdf.cell(0, 6, ar(f"التاريخ والوقت: {date_str}"), ln=True, align="R")
+    pdf.cell(0, 6, ar(f"استلمنا من الوكيل: {agent_name}"), ln=True, align="R")
+    pdf.cell(0, 6, ar(f"العنوان: {agent_address}"), ln=True, align="R")
+    pdf.cell(0, 6, ar(f"العملة: {currency_symbol}"), ln=True, align="R")
+    pdf.ln(8)
+
+    pdf.set_fill_color(241, 245, 249)
+    pdf.set_font("Amiri", "", 12)
+
+    pdf.cell(100, 10, f"{paid_amount:,} " + ar(currency_symbol), border=1, align="C")
+    pdf.cell(90, 10, ar("المبلغ الواصل (المسدد):"), border=1, align="R", fill=True)
+    pdf.ln()
+
+    pdf.cell(100, 10, ar(notes), border=1, align="C")
+    pdf.cell(90, 10, ar("بيان/طريقة التسديد:"), border=1, align="R", fill=True)
+    pdf.ln()
+
+    pdf.cell(100, 10, f"{prev_balance:,} " + ar(currency_symbol), border=1, align="C")
+    pdf.cell(90, 10, ar("الدين السكلي السابق:"), border=1, align="R", fill=True)
+    pdf.ln()
+
+    pdf.set_fill_color(226, 232, 240)
+    pdf.cell(100, 12, f"{new_balance:,} " + ar(currency_symbol), border=1, align="C", fill=True)
+    pdf.cell(90, 12, ar("الرصيد المتبقي ذمة الوكيل:"), border=1, align="R", fill=True)
+    pdf.ln(20)
+
+    pdf.cell(0, 6, ar("توقيع المسلم (الوكيل): ..........................         توقيع/ختم المستلم (المعمل): .........................."), ln=True, align="C")
     return bytes(pdf.output())
 
 # --- 3. إعداد الصفحة والجلسة ---
@@ -254,7 +312,7 @@ st.write("---")
 # --- 5. التبويبات الرئيسية ---
 if st.session_state.role == "admin":
     tabs = st.tabs([
-        "🤝 إدارة الوكلاء والديون",
+        "🤝 إدارة الوكلاء والعناوين",
         "🛒 بيع للوكيل / وصل قبض",
         "💵 تسجيل دفعة مالية من وكيل",
         "📊 التقارير الشاملة",
@@ -267,23 +325,27 @@ else:
     tabs = st.tabs([
         "🛒 بيع للوكيل / وصل قبض",
         "💵 تسجيل دفعة مالية من وكيل",
-        "🤝 دليل الوكلاء والديون",
+        "🤝 دليل الوكلاء والعناوين",
         "📦 المخزون الحالي",
     ])
 
 # --- تبويب [1]: إدارة دليل الوكلاء وكشف الحسابات ---
 tab_agents = tabs[0] if st.session_state.role == "admin" else tabs[2]
 with tab_agents:
-    st.header("🤝 دليل الوكلاء والمبالغ المطلوبة (الديون)")
+    st.header("🤝 دليل الوكلاء (العناوين والديون بالدينار والدولار)")
 
     col_ag1, col_ag2 = st.columns([1, 2])
 
-    # إضافة وكيل جديد
     with col_ag1:
         st.subheader("➕ إضافة وكيل جديد")
         new_agent_name = st.text_input("اسم الوكيل / المحل:")
+        new_agent_address = st.text_input("عنوان الوكيل / المحافظة أو المنطقة:")
         new_agent_phone = st.text_input("رقم الهاتف:")
-        initial_balance = st.number_input("الرصيد السابق/الافتتاحي (د.ع):", min_value=0.0, step=25000.0)
+        
+        st.write("---")
+        st.caption("الرصيد الافتتاحي السابق (إن وجد):")
+        init_iqd = st.number_input("الرصيد السابق بالدينار (د.ع):", min_value=0.0, step=50000.0)
+        init_usd = st.number_input("الرصيد السابق بالدولار ($USD):", min_value=0.0, step=100.0)
 
         if st.button("➕ تسجيل الوكيل بالنظام", type="primary", use_container_width=True):
             if not new_agent_name.strip():
@@ -293,24 +355,37 @@ with tab_agents:
             else:
                 factory_data["agents"][new_agent_name] = {
                     "phone": new_agent_phone,
-                    "balance": initial_balance,
+                    "address": new_agent_address if new_agent_address.strip() else "-",
+                    "balance_iqd": init_iqd,
+                    "balance_usd": init_usd,
                 }
-                if initial_balance > 0:
+                if init_iqd > 0:
                     factory_data["agent_ledger"].append({
                         "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                         "agent": new_agent_name,
+                        "currency": "د.ع",
                         "type": "رصيد افتتاحي",
-                        "amount": initial_balance,
-                        "notes": "دين سابق عند تسجيل الوكيل بالنظام",
-                        "balance_after": initial_balance,
+                        "amount": init_iqd,
+                        "notes": "دين سابق دينار عراقي",
+                        "balance_after": init_iqd,
                     })
+                if init_usd > 0:
+                    factory_data["agent_ledger"].append({
+                        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                        "agent": new_agent_name,
+                        "currency": "$USD",
+                        "type": "رصيد افتتاحي",
+                        "amount": init_usd,
+                        "notes": "دين سابق دولار أمريكي",
+                        "balance_after": init_usd,
+                    })
+
                 save_all_factories(all_factories)
                 st.success(f"✅ تم إضافة الوكيل [{new_agent_name}] بنجاح!")
                 st.rerun()
 
-    # عرض قائمة الوكلاء وأرصدتهم
     with col_ag2:
-        st.subheader("📋 قائمة الوكلاء المطلوبة منهم أموال")
+        st.subheader("📋 قائمة الوكلاء والعناوين والأرصلة الحالية")
         if not factory_data["agents"]:
             st.info("لا يوجد وكلاء مسجلون بالنظام حتى الآن.")
         else:
@@ -318,13 +393,14 @@ with tab_agents:
             for name, info in factory_data["agents"].items():
                 agents_list.append({
                     "اسم الوكيل": name,
+                    "عنوان الوكيل": info.get("address", "-"),
                     "رقم الهاتف": info.get("phone", "-"),
-                    "الديون الكلية (د.ع)": f"{info.get('balance', 0):,}",
+                    "الديون (بالدينار د.ع)": f"{info.get('balance_iqd', 0):,}",
+                    "الديون (بالدولار $)": f"{info.get('balance_usd', 0):,}",
                 })
             st.dataframe(pd.DataFrame(agents_list), use_container_width=True)
 
     st.write("---")
-    # كشف حساب وكيل تفصيلي
     st.subheader("📜 كشف حساب تفصيلي لوكيل (Ledger)")
     selected_agent_for_ledger = st.selectbox("اختر الوكيل لطباعة كشف حركاته المالية:", list(factory_data["agents"].keys()))
 
@@ -336,29 +412,36 @@ with tab_agents:
             df_ledger = pd.DataFrame(agent_history)
             df_ledger.rename(columns={
                 "date": "التاريخ والوقت",
+                "currency": "العملة",
                 "type": "نوع الحركة",
-                "amount": "المبلغ (د.ع)",
+                "amount": "المبلغ",
                 "notes": "التفاصيل / البيان",
                 "balance_after": "الرصيد المتبقي بعد الحركة",
             }, inplace=True)
-            st.dataframe(df_ledger[["التاريخ والوقت", "نوع الحركة", "المبلغ (د.ع)", "التفاصيل / البيان", "الرصيد المتبقي بعد الحركة"]], use_container_width=True)
+            st.dataframe(df_ledger[["التاريخ والوقت", "العملة", "نوع الحركة", "المبلغ", "التفاصيل / البيان", "الرصيد المتبقي بعد الحركة"]], use_container_width=True)
         else:
             st.info("لا توجد حركات مالية مسجلة لهذا الوكيل بعد.")
 
 # --- تبويب [2]: البيع للوكيل وإصدار وصل قبض وتفريغ ---
 tab_sale = tabs[1] if st.session_state.role == "admin" else tabs[0]
 with tab_sale:
-    st.header("🛒 بيع برادات لوكيل مع احتساب الرصيد السابق")
+    st.header("🛒 بيع برادات لوكيل وإصدار وصل قبض")
 
     if not factory_data["agents"]:
         st.warning("⚠️ يرجى إضافة وكيل واحد على الأقل أولاً من تبويب [إدارة الوكلاء] للتمكن من البيع.")
     else:
-        col_s1, col_s2 = st.columns(2)
+        col_s1, col_s2, col_s3 = st.columns(3)
         with col_s1:
             selected_agent = st.selectbox("اختر الوكيل المشتري:", list(factory_data["agents"].keys()))
-            prev_balance = factory_data["agents"][selected_agent]["balance"]
-            st.info(f"💰 **الرصيد السابق المطلوب من الوكيل:** `{prev_balance:,}` د.ع")
+            agent_addr = factory_data["agents"][selected_agent].get("address", "-")
+            st.caption(f"📍 العنوان: **{agent_addr}**")
         with col_s2:
+            currency_choice = st.radio("اختر عملة التعامل لهذه القائمة:", ["دينار عراقي (د.ع)", "دولار أمريكي ($USD)"], horizontal=True)
+            curr_code = "د.ع" if "دينار" in currency_choice else "$USD"
+            bal_key = "balance_iqd" if curr_code == "د.ع" else "balance_usd"
+            prev_balance = factory_data["agents"][selected_agent].get(bal_key, 0.0)
+            st.info(f"💰 الرصيد السابق بالـ ({curr_code}): `{prev_balance:,}`")
+        with col_s3:
             sale_date = st.date_input("تاريخ القائمة:", value=datetime.now())
 
         model_list = list(factory_data["bom"].keys())
@@ -374,7 +457,8 @@ with tab_sale:
             with col_m2:
                 qty = st.number_input("العدد:", min_value=0, max_value=max(0, stock_avail), value=0, key=f"ag_qty_{model}")
             with col_m3:
-                price = st.number_input("السعر للوكيل:", min_value=0, value=0, step=5000, key=f"ag_price_{model}")
+                step_val = 5000 if curr_code == "د.ع" else 5
+                price = st.number_input(f"السعر بـ ({curr_code}):", min_value=0, value=0, step=step_val, key=f"ag_price_{model}")
 
             if qty > 0:
                 item_total = qty * price
@@ -384,10 +468,11 @@ with tab_sale:
         st.write("---")
         col_p1, col_p2 = st.columns(2)
         with col_p1:
-            paid_now = st.number_input("المبلغ المسدد نقداً الآن (الواصل):", min_value=0.0, step=25000.0, value=0.0)
+            step_paid = 25000.0 if curr_code == "د.ع" else 50.0
+            paid_now = st.number_input(f"المبلغ المسدد نقداً الآن بالـ ({curr_code}):", min_value=0.0, step=step_paid, value=0.0)
         with col_p2:
             final_due_balance = prev_balance + current_invoice_total - paid_now
-            st.markdown(f"### 🧮 الرصيد الكلي المتبقي بعد الوصل: `{final_due_balance:,}` د.ع")
+            st.markdown(f"### 🧮 الرصيد الكلي المتبقي بـ ({curr_code}): `{final_due_balance:,}`")
 
         if st.button("📝 تأكيد البيع وإصدار وصل قبض الوكيل", type="primary", use_container_width=True):
             if not selected_items:
@@ -395,30 +480,28 @@ with tab_sale:
             else:
                 receipt_no = factory_data.get("receipt_counter", 1001)
 
-                # 1. خصم البضاعة من المخزن
                 for item in selected_items:
                     factory_data["finished_goods"][item["model"]] -= item["count"]
 
-                # 2. تحديث رصيد الوكيل
-                factory_data["agents"][selected_agent]["balance"] = final_due_balance
+                factory_data["agents"][selected_agent][bal_key] = final_due_balance
 
-                # 3. تسجيل الحركة في كشف الحساب (Ledger)
                 factory_data["agent_ledger"].append({
                     "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                     "agent": selected_agent,
-                    "type": "تفريغ بضاعة + وصل قبض",
+                    "currency": curr_code,
+                    "type": "تفريغ بضاعة + وصل",
                     "amount": current_invoice_total,
-                    "notes": f"وصل #{receipt_no} | بضاعة بقيمة: {current_invoice_total:,} | المسدد: {paid_now:,}",
+                    "notes": f"وصل #{receipt_no} | بضاعة: {current_invoice_total:,} | مسدد: {paid_now:,}",
                     "balance_after": final_due_balance,
                 })
 
                 factory_data["receipt_counter"] = receipt_no + 1
                 save_all_factories(all_factories)
 
-                # 4. توليد PDF
                 pdf_bytes = generate_agent_receipt_pdf(
                     factory_name=current_factory_name,
                     agent_name=selected_agent,
+                    agent_address=agent_addr,
                     date_str=sale_date.strftime("%Y-%m-%d"),
                     items_data=selected_items,
                     current_total=current_invoice_total,
@@ -426,58 +509,95 @@ with tab_sale:
                     paid_amount=paid_now,
                     final_balance=final_due_balance,
                     receipt_no=receipt_no,
+                    currency_symbol=curr_code,
                 )
 
                 st.success("✅ تم حفظ العملية، وتحديث حساب الوكيل والمخزن بنجاح!")
                 st.download_button(
-                    label="📥 تنزيل وصل القبض والحساب (PDF)",
+                    label=f"📥 تنزيل وصل القبض والحساب بـ ({curr_code}) - PDF",
                     data=pdf_bytes,
-                    file_name=f"وصل_الوكيل_{selected_agent}_{receipt_no}.pdf",
+                    file_name=f"وصل_{selected_agent}_{receipt_no}.pdf",
                     mime="application/pdf",
                     use_container_width=True,
                 )
 
-# --- تبويب [3]: تسديد دفعة مالية مستقلة من وكيل ---
+# --- تبويب [3]: تسديد دفعة مالية مستقلة من وكيل (مع طباعة وصل التسديد) ---
 tab_pay = tabs[2] if st.session_state.role == "admin" else tabs[1]
 with tab_pay:
-    st.header("💵 تسجيل دفعة مالية (تسديد دين) من وكيل")
+    st.header("💵 تسجيل دفعة مالية (تسديد دين) من وكيل وطباعة الوصل")
 
     if not factory_data["agents"]:
         st.warning("لا يوجد وكلاء مسجلون.")
     else:
-        agent_to_pay = st.selectbox("اختر الوكيل المسدد:", list(factory_data["agents"].keys()), key="pay_agent_select")
-        current_bal = factory_data["agents"][agent_to_pay]["balance"]
+        col_pay1, col_pay2 = st.columns(2)
+        with col_pay1:
+            agent_to_pay = st.selectbox("اختر الوكيل المسدد:", list(factory_data["agents"].keys()), key="pay_agent_select")
+            agent_addr = factory_data["agents"][agent_to_pay].get("address", "-")
+            pay_currency = st.radio("عملة التسديد:", ["دينار عراقي (د.ع)", "دولار أمريكي ($USD)"], key="pay_curr")
+            curr_code = "د.ع" if "دينار" in pay_currency else "$USD"
+            bal_key = "balance_iqd" if curr_code == "د.ع" else "balance_usd"
+            current_bal = factory_data["agents"][agent_to_pay].get(bal_key, 0.0)
 
-        st.info(f"المبلغ المطلوب حالياً من الوكيل [{agent_to_pay}]: **{current_bal:,} د.ع**")
+            st.info(f"المبلغ المطلوب حالياً من الوكيل [{agent_to_pay}] بالـ ({curr_code}): **{current_bal:,}**")
 
-        pay_amount = st.number_input("المبلغ الواصل من الوكيل (د.ع):", min_value=1.0, max_value=float(max(1.0, current_bal)), step=50000.0)
-        pay_notes = st.text_input("بيان/ملاحظات التسديد (مثال: حوالة، كاش، تحويل زين كاش):", value="تسديد دفعة حساب نقدية")
+        with col_pay2:
+            step_pay = 25000.0 if curr_code == "د.ع" else 50.0
+            pay_amount = st.number_input(f"المبلغ الواصل من الوكيل بـ ({curr_code}):", min_value=1.0, max_value=float(max(1.0, current_bal)), step=step_pay)
+            pay_notes = st.text_input("بيان/ملاحظات التسديد (مثال: حوالة، كاش، تحويل):", value="تسديد دفعة حساب نقدية")
 
-        if st.button("💾 تسجيل التسديد الخطي وخصم من دين الوكيل", type="primary", use_container_width=True):
+        if st.button("💾 تسجيل التسديد الخطي وطباعة الوصل", type="primary", use_container_width=True):
+            receipt_no = factory_data.get("receipt_counter", 1001)
             new_bal = current_bal - pay_amount
-            factory_data["agents"][agent_to_pay]["balance"] = new_bal
+            factory_data["agents"][agent_to_pay][bal_key] = new_bal
 
             factory_data["agent_ledger"].append({
                 "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                 "agent": agent_to_pay,
+                "currency": curr_code,
                 "type": "تسديد نقدي (دفعة)",
                 "amount": -pay_amount,
-                "notes": pay_notes,
+                "notes": f"وصل تسديد #{receipt_no} | {pay_notes}",
                 "balance_after": new_bal,
             })
 
+            factory_data["receipt_counter"] = receipt_no + 1
             save_all_factories(all_factories)
-            st.success(f"✅ تم خصم ({pay_amount:,} د.ع) من حساب الوكيل [{agent_to_pay}]. الرصيد الجديد: ({new_bal:,} د.ع)")
-            st.rerun()
+
+            # توليد وصل تسديد الدين PDF
+            pdf_bytes = generate_payment_receipt_pdf(
+                factory_name=current_factory_name,
+                agent_name=agent_to_pay,
+                agent_address=agent_addr,
+                date_str=datetime.now().strftime("%Y-%m-%d %H:%M"),
+                paid_amount=pay_amount,
+                prev_balance=current_bal,
+                new_balance=new_bal,
+                notes=pay_notes,
+                currency_symbol=curr_code,
+                receipt_no=receipt_no,
+            )
+
+            st.success(f"✅ تم خصم ({pay_amount:,} {curr_code}) من حساب الوكيل [{agent_to_pay}]. الرصيد الجديد: ({new_bal:,} {curr_code})")
+            
+            st.download_button(
+                label=f"📥 تنزيل وصل تسديد الدين PDF (وصل #{receipt_no})",
+                data=pdf_bytes,
+                file_name=f"وصل_تسديد_{agent_to_pay}_{receipt_no}.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+            )
 
 # --- التبويبات المتبقية (الإنتاج، المخزون، الحسابات، إلخ...) ---
-# (تمت المحافظة على كافة الآليات السابقة للإنتاج وتحديث المخزون)
 if st.session_state.role == "admin":
     with tabs[3]: # التقارير
         st.header("📊 التقارير الإحصائية للمعمل")
-        total_agent_debts = sum([a.get("balance", 0) for a in factory_data["agents"].values()])
-        st.metric("إجمالي الديون الأجلة المستحقة عند الوكلاء", f"{total_agent_debts:,} د.ع")
+        tot_iqd = sum([a.get("balance_iqd", 0) for a in factory_data["agents"].values()])
+        tot_usd = sum([a.get("balance_usd", 0) for a in factory_data["agents"].values()])
         
+        c_r1, c_r2 = st.columns(2)
+        c_r1.metric("إجمالي ديون الوكلاء (بالدينار العراقي)", f"{tot_iqd:,} د.ع")
+        c_r2.metric("إجمالي ديون الوكلاء (بالدولار الأمريكي)", f"{tot_usd:,} $")
+
     with tabs[4]: # الإنتاج
         st.header("🏭 تسجيل إنتاج براد جديد")
         model_list = list(factory_data["bom"].keys())
@@ -500,6 +620,6 @@ if st.session_state.role == "admin":
 
     with tabs[7]: # تصدير Excel
         st.header("📄 تصدير البيانات إلى Excel")
-        if st.button("📥 تصدير كشف ديون الوكلاء"):
+        if st.button("📥 تصدير كشف الوكلاء والديون والعناوين"):
             df_ag = pd.DataFrame(list(factory_data["agents"].items()))
             st.download_button("تنزيل ملف الوكلاء Excel", data=df_ag.to_csv(index=False).encode('utf-8-sig'), file_name="وكلاء_المعمل.csv")
