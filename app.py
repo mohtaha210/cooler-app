@@ -78,7 +78,7 @@ def save_all_factories(data):
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 # ==========================================
-# 2. دوال الطباعة وخلق سند القبض (PDF)
+# 2. دوال الطباعة وخلق سند القبض (PDF مُصححة)
 # ==========================================
 def ar(text):
     if not text:
@@ -104,16 +104,19 @@ def generate_sanad_qabd_pdf(
     pdf.add_page()
     pdf.add_font("Amiri", "", font_path)
 
+    # إطار أسرع وأوضح
     pdf.set_draw_color(0, 0, 0)
-    pdf.set_linewidth(0.5)
+    pdf.set_line_width(0.5)
     pdf.rect(6, 6, 198, 136)
 
+    # عنوان المستند
     pdf.set_font("Amiri", "", 22)
     pdf.set_xy(10, 10)
     pdf.cell(190, 10, ar("سند قبض"), align="C")
 
     pdf.set_font("Amiri", "", 11)
 
+    # الجدول الأول: العملة، رقم المستند، التاريخ
     start_y = 26
     pdf.set_xy(12, start_y)
     pdf.cell(62, 8, ar("العملة"), border=1, align="C")
@@ -125,6 +128,7 @@ def generate_sanad_qabd_pdf(
     pdf.cell(62, 9, str(doc_no), border=1, align="C")
     pdf.cell(62, 9, str(doc_date), border=1, align="C")
 
+    # الجدول الثاني: السيد والمبلغ
     start_y_2 = start_y + 23
     pdf.set_xy(12, start_y_2)
     pdf.cell(124, 8, ar("السيد"), border=1, align="C")
@@ -134,9 +138,11 @@ def generate_sanad_qabd_pdf(
     pdf.cell(124, 10, ar(agent_name), border=1, align="C")
     pdf.cell(62, 10, f"{amount_num:,.2f}", border=1, align="C")
 
+    # المبلغ كتابةً
     pdf.set_xy(12, start_y_2 + 18)
     pdf.cell(186, 10, ar(f"المبلغ كتابةً: {amount_text}"), border=1, align="R")
 
+    # الجدول الثالث: الرصيد
     start_y_3 = start_y_2 + 35
     pdf.set_xy(12, start_y_3)
     pdf.cell(93, 8, ar("الرصيد بعد التسديد"), border=1, align="C")
@@ -146,16 +152,22 @@ def generate_sanad_qabd_pdf(
     pdf.cell(93, 10, f"{new_balance:,.2f}", border=1, align="C")
     pdf.cell(93, 10, f"{prev_balance:,.2f}", border=1, align="C")
 
+    # الملاحظات
     if notes:
         pdf.set_xy(12, start_y_3 + 20)
         pdf.cell(186, 8, ar(f"الملاحظات: {notes}"), border=1, align="R")
 
+    # التوقيعات
     pdf.set_xy(15, start_y_3 + 32)
     pdf.cell(80, 8, ar("توقيع المستلم: ...................."), align="L")
     pdf.set_xy(115, start_y_3 + 32)
     pdf.cell(80, 8, ar("توقيع المسلّم: ...................."), align="R")
 
-    return bytes(pdf.output())
+    # تصحيح طريقة الإخراج لتكون متوافقة مع جميع إصدارات fpdf
+    pdf_out = pdf.output()
+    if isinstance(pdf_out, str):
+        return pdf_out.encode('latin1')
+    return bytes(pdf_out)
 
 # ==========================================
 # 3. إعداد الصفحة وتسجيل الدخول
@@ -250,7 +262,7 @@ with col_u3:
 st.write("---")
 
 # ==========================================
-# 5. التبويبات الشاملة والكاملة
+# 5. التبويبات الشاملة
 # ==========================================
 if st.session_state.role == "admin":
     tabs = st.tabs([
@@ -311,35 +323,38 @@ with tabs[0]:
         elif amount_num <= 0:
             st.error("⚠️ يرجى إدخال مبلغ أكبر من صفر!")
         else:
-            pdf_bytes = generate_sanad_qabd_pdf(
-                doc_no=doc_no,
-                doc_date=doc_date.strftime("%d-%m-%Y"),
-                currency_name=currency_name,
-                agent_name=agent_name_input,
-                amount_num=amount_num,
-                amount_text=amount_text,
-                prev_balance=prev_balance,
-                new_balance=new_balance,
-                notes=notes
-            )
+            try:
+                pdf_bytes = generate_sanad_qabd_pdf(
+                    doc_no=doc_no,
+                    doc_date=doc_date.strftime("%d-%m-%Y"),
+                    currency_name=currency_name,
+                    agent_name=agent_name_input,
+                    amount_num=amount_num,
+                    amount_text=amount_text,
+                    prev_balance=prev_balance,
+                    new_balance=new_balance,
+                    notes=notes
+                )
 
-            if selected_agent != "-- إدخال يدوي حر --":
-                if currency_name == "دولار":
-                    factory_data["agents"][selected_agent]["balance_usd"] = new_balance
-                else:
-                    factory_data["agents"][selected_agent]["balance_iqd"] = new_balance
+                if selected_agent != "-- إدخال يدوي حر --":
+                    if currency_name == "دولار":
+                        factory_data["agents"][selected_agent]["balance_usd"] = new_balance
+                    else:
+                        factory_data["agents"][selected_agent]["balance_iqd"] = new_balance
 
-            factory_data["receipt_counter"] = doc_no + 1
-            save_all_factories(all_factories)
+                factory_data["receipt_counter"] = doc_no + 1
+                save_all_factories(all_factories)
 
-            st.success(f"✅ تم إصدار سند القبض رقم #{doc_no} بنجاح!")
-            st.download_button(
-                label=f"📥 تنزيل سند القبض رقم #{doc_no} (PDF)",
-                data=pdf_bytes,
-                file_name=f"سند_قبض_{doc_no}.pdf",
-                mime="application/pdf",
-                use_container_width=True
-            )
+                st.success(f"✅ تم إصدار سند القبض رقم #{doc_no} بنجاح!")
+                st.download_button(
+                    label=f"📥 تنزيل سند القبض رقم #{doc_no} (PDF)",
+                    data=pdf_bytes,
+                    file_name=f"سند_قبض_{doc_no}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.error(f"حدث خطأ أثناء إنشاء السند: {e}")
 
 # --- التبويب 2: إدارة الوكلاء ---
 with tabs[1]:
@@ -392,7 +407,7 @@ with tabs[1]:
                 })
             st.dataframe(pd.DataFrame(agents_list), use_container_width=True)
 
-# --- التبويب 3: إدارة المخزون (كامل ومفصّل) ---
+# --- التبويب 3: إدارة المخزون ---
 with tabs[2]:
     st.header("📦 إدارة المخزون المواد الأولية والمنتجات الجاهزة")
     
@@ -475,12 +490,9 @@ if st.session_state.role == "admin":
             if not has_enough:
                 st.error("⚠️ لا يمكن إتمام العملية بسبب نقص القطع في المخزن!")
             else:
-                # خصم القطع
                 for part, qty_per_unit in req_bom.items():
                     factory_data["inventory"][part] -= (qty_per_unit * prod_qty)
-                # زيادة المنتجات الجاهزة
                 factory_data["finished_goods"][product_model] += prod_qty
-                # سجل الإنتاج
                 factory_data["production_history"].append({
                     "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                     "model": product_model,
@@ -514,12 +526,10 @@ if st.session_state.role == "admin":
 
             if st.button("تأكيد تحويل العملة", type="primary"):
                 if trans_type == "تحويل من دينار إلى دولار":
-                    # خصم دينار وزيادة دولار
                     usd_val = trans_amount / (ex_rate / 100.0)
                     ag_info["balance_iqd"] -= trans_amount
                     ag_info["balance_usd"] += usd_val
                 else:
-                    # خصم دولار وزيادة دينار
                     iqd_val = trans_amount * (ex_rate / 100.0)
                     ag_info["balance_usd"] -= trans_amount
                     ag_info["balance_iqd"] += iqd_val
