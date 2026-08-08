@@ -92,14 +92,7 @@ def load_all_factories():
     except Exception:
       return {}
   else:
-    # إنشاء معمل الرافدين كمعمل افتراضي أول
-    default_db = {
-        "معمل برادات الرافدين": get_default_factory_data(
-            "معمل برادات الرافدين", "admin", "123"
-        )
-    }
-    save_all_factories(default_db)
-    return default_db
+    return {}
 
 
 def save_all_factories(data):
@@ -209,19 +202,22 @@ if "authenticated" not in st.session_state:
   st.session_state.role = None
   st.session_state.user_fullname = ""
 
-# --- 4. شاشة تسجيل الدخول وإنشاء معمل جديد ---
+# --- 4. شاشة تسجيل الدخول أو إنشاء حساب جديد ---
 if not st.session_state.authenticated:
   st.title("❄️ نظام إدارة وتتبع المعامل والمخزون")
 
   login_tab, register_tab = st.tabs(
-      ["🔑 تسجيل الدخول", "🏭 إنشاء حساب معمل جديد"]
+      ["🔑 تسجيل الدخول لمعمل", "🏭 إنشاء حساب معمل جديد"]
   )
 
   with login_tab:
     st.subheader("دخول إلى حساب المعمل")
     factory_list = list(all_factories.keys())
     if not factory_list:
-      st.warning("لا توجد معامل مسجلة بعد. يرجى إنشاء معمل جديد.")
+      st.info(
+          "💡 لا توجد معامل مسجلة بالنظام حالياً. يرجى التوجه لتبويب [إنشاء"
+          " حساب معمل جديد] في الأعلى لإنشاء معملك الأول."
+      )
     else:
       selected_factory = st.selectbox("اختر المعمل:", factory_list)
       username_input = st.text_input("اسم المستخدم:")
@@ -243,12 +239,12 @@ if not st.session_state.authenticated:
           st.success("تم تسجيل الدخول بنجاح!")
           st.rerun()
         else:
-          st.error("اسم المستخدم أو كلمة المرور غير صحيحة لهذا المعمل!")
+          st.error("اسم المستخدم أو كلمة المرور غير صحيحة!")
 
   with register_tab:
     st.subheader("تسجيل معمل جديد بالنظام")
-    new_factory_name = st.text_input("اسم المعمل الجديد (مثال: معمل بغداد):")
-    admin_user = st.text_input("اسم مستخدم المدير (Admin Username):")
+    new_factory_name = st.text_input("اسم المعمل الجديد:")
+    admin_user = st.text_input("اسم مستخدم المدير (الذي ستدخل به):")
     admin_pass = st.text_input("كلمة مرور المدير:", type="password")
 
     if st.button(
@@ -257,16 +253,17 @@ if not st.session_state.authenticated:
         use_container_width=True,
     ):
       if not new_factory_name or not admin_user or not admin_pass:
-        st.error("يرجى ملء جميع الحقول المطلوبة.")
+        st.error("يرجى إدخال اسم المعمل، واسم المستخدم، وكلمة المرور.")
       elif new_factory_name in all_factories:
-        st.error("اسم هذا المعمل موجود بالفعل! اختر اسماً آخر.")
+        st.error("اسم هذا المعمل مستخدم بالفعل! اختر اسماً آخر.")
       else:
         all_factories[new_factory_name] = get_default_factory_data(
             new_factory_name, admin_user, admin_pass
         )
         save_all_factories(all_factories)
         st.success(
-            f"✅ تم إنشاء [{new_factory_name}] بنجاح! يمكنك الآن تسجيل الدخول."
+            f"✅ تم إنشاء [{new_factory_name}] بنجاح! يمكنك الآن تسجيل الدخول"
+            " بحسابك من التبويب المAdjacent."
         )
 
   st.stop()
@@ -441,7 +438,6 @@ with tab_receipt:
             receipt_no=receipt_no,
         )
 
-        # تسجيل السجل
         factory_data["sales_history"].append({
             "receipt_no": receipt_no,
             "date": purchase_date.strftime("%Y-%m-%d"),
