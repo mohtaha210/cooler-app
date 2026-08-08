@@ -5,6 +5,9 @@ from fpdf import FPDF
 import arabic_reshaper
 from bidi.algorithm import get_display
 
+# --- إعدادات الصفحة والنظام ---
+st.set_page_config(page_title="نظام إدارة المعمل المتكامل", layout="wide")
+
 # --- دالة معالجة النصوص العربية ---
 def ar(text):
     if not text:
@@ -12,7 +15,7 @@ def ar(text):
     reshaped_text = arabic_reshaper.reshape(str(text))
     return get_display(reshaped_text)
 
-# --- دالة تنزيل الخط العربي ---
+# --- تنزيل الخط العربي للـ PDF ---
 def ensure_arabic_font():
     font_path = "Amiri-Regular.ttf"
     if not os.path.exists(font_path):
@@ -22,69 +25,65 @@ def ensure_arabic_font():
             f.write(response.content)
     return font_path
 
-# --- دالة إنشاء ملف الـ PDF ---
-def generate_sanad_qabd_pdf(
-    doc_no, doc_date, currency_name, agent_name, 
-    amount_num, amount_text, prev_balance, new_balance, notes=""
-):
+# --- دالة إنشاء سند القبض (فارغ طبق الأصل 100% بدون مدخلات) ---
+def generate_blank_sanad_qabd_pdf():
     font_path = ensure_arabic_font()
+    
+    # قياس A5 Landscape (أفقي) بنفس مقاس الورقة الأصلية
     pdf = FPDF(orientation='L', unit='mm', format='A5')
     pdf.add_page()
     pdf.add_font("Amiri", "", font_path)
 
-    # عنوان السند
+    # عنوان السند بالمنتصف
     pdf.set_font("Amiri", "", 24)
-    pdf.set_xy(10, 10)
+    pdf.set_xy(10, 12)
     pdf.cell(190, 12, ar("سند قبض"), align="C")
 
-    pdf.set_font("Amiri", "", 11)
+    pdf.set_font("Amiri", "", 12)
 
-    # الصف الأول
-    y = 26
-    pdf.set_xy(105, y)
-    pdf.cell(65, 9, str(doc_no), border=1, align="C")
-    pdf.cell(30, 9, ar("رقم المستند"), border=1, align="C")
+    # --- الجدول الرئيسي ---
+    # الصف الأول: رقم المستند (يمين) | العملة (يسار)
+    y1 = 28
+    pdf.set_xy(105, y1)
+    pdf.cell(65, 11, "", border=1) # فارغ
+    pdf.cell(30, 11, ar("رقم المستند"), border=1, align="C")
     
-    pdf.set_xy(10, y)
-    pdf.cell(65, 9, ar(currency_name), border=1, align="C")
-    pdf.cell(30, 9, ar("العملة"), border=1, align="C")
+    pdf.set_xy(10, y1)
+    pdf.cell(65, 11, "", border=1) # فارغ
+    pdf.cell(30, 11, ar("العملة"), border=1, align="C")
 
-    # الصف الثاني
-    y_2 = y + 9
-    pdf.set_xy(105, y_2)
-    pdf.cell(65, 9, str(doc_date), border=1, align="C")
-    pdf.cell(30, 9, ar("تاريخ المستند"), border=1, align="C")
+    # الصف الثاني: تاريخ المستند (يمين) | السيد (يسار)
+    y2 = y1 + 11
+    pdf.set_xy(105, y2)
+    pdf.cell(65, 11, "", border=1) # فارغ
+    pdf.cell(30, 11, ar("تاريخ المستند"), border=1, align="C")
     
-    pdf.set_xy(10, y_2)
-    pdf.cell(65, 9, ar(agent_name), border=1, align="R")
-    pdf.cell(30, 9, ar("السيد"), border=1, align="C")
+    pdf.set_xy(10, y2)
+    pdf.cell(65, 11, "", border=1) # فارغ
+    pdf.cell(30, 11, ar("السيد"), border=1, align="C")
 
-    # الصف الثالث
-    y_3 = y_2 + 9
-    pdf.set_xy(10, y_3)
-    pdf.cell(95, 9, ar(amount_text), border=1, align="R")
-    
-    amt_str = f"{float(amount_num):,.2f}" if amount_num else ""
-    pdf.cell(65, 9, amt_str, border=1, align="C")
-    pdf.cell(30, 9, ar("المبلغ"), border=1, align="C")
+    # الصف الثالث: المبلغ رقماً + المبلغ كتابةً
+    y3 = y2 + 11
+    pdf.set_xy(10, y3)
+    pdf.cell(95, 11, "", border=1) # مساحة كتابة المبلغ تفقيطاً
+    pdf.cell(65, 11, "", border=1) # مساحة المبلغ رقماً
+    pdf.cell(30, 11, ar("المبلغ"), border=1, align="C")
 
-    # الصف الرابع
-    y_4 = y_3 + 9
-    pdf.set_xy(10, y_4)
-    pdf.cell(160, 10, ar(notes), border=1, align="R")
-    pdf.cell(30, 10, ar("الملاحظات"), border=1, align="C")
+    # الصف الرابع: الملاحظات
+    y4 = y3 + 11
+    pdf.set_xy(10, y4)
+    pdf.cell(160, 12, "", border=1) # فارغ للملاحظات
+    pdf.cell(30, 12, ar("الملاحظات"), border=1, align="C")
 
-    # جدول الأرصدة
-    y_5 = y_4 + 11
-    p_bal_str = f"{float(prev_balance):,.2f}" if prev_balance else ""
-    pdf.set_xy(105, y_5)
-    pdf.cell(65, 8, p_bal_str, border=1, align="C")
-    pdf.cell(30, 8, ar("الرصيد السابق"), border=1, align="C")
+    # --- جدول الأرصدة السفلي (على اليمين) ---
+    y5 = y4 + 14
+    pdf.set_xy(105, y5)
+    pdf.cell(65, 10, "", border=1) # فارغ للرصيد السابق
+    pdf.cell(30, 10, ar("الرصيد السابق"), border=1, align="C")
 
-    n_bal_str = f"{float(new_balance):,.2f}" if new_balance else ""
-    pdf.set_xy(105, y_5 + 8)
-    pdf.cell(65, 8, n_bal_str, border=1, align="C")
-    pdf.cell(30, 8, ar("الرصيد بعد التسديد"), border=1, align="C")
+    pdf.set_xy(105, y5 + 10)
+    pdf.cell(65, 10, "", border=1) # فارغ للرصيد بعد التسديد
+    pdf.cell(30, 10, ar("الرصيد بعد التسديد"), border=1, align="C")
 
     pdf_out = pdf.output()
     if isinstance(pdf_out, str):
@@ -92,42 +91,51 @@ def generate_sanad_qabd_pdf(
     return bytes(pdf_out)
 
 
-# --- واجهة تطبيق Streamlit ---
-st.set_page_config(page_title="سند قبض - معمل الرافدين", layout="centered")
+# ==========================================
+#      واجهة نظام إدارة المعمل المتكامل
+# ==========================================
 
-st.markdown("<h2 style='text-align: center;'>نظام طباعة سند القبض</h2>", unsafe_allow_html=True)
+# الشريط الجانبي للتنقل بين أقسام المعمل
+st.sidebar.title("🏭 نظام إدارة المعمل")
+menu = st.sidebar.radio(
+    "القائمة الرئيسية:",
+    ["الرئيسية (لوحة التحكم)", "إدارة الإنتاج والطلبيات", "الحسابات والسندات", "المخزن والمواد الخام"]
+)
 
-col1, col2 = st.columns(2)
-with col1:
-    doc_no = st.text_input("رقم المستند", value="3290")
-    doc_date = st.text_input("تاريخ المستند", value="13-07-2026")
-    amount_num = st.number_input("المبلغ رقماً", value=143.00, step=1.0)
-    prev_balance = st.number_input("الرصيد السابق", value=143.00, step=1.0)
-
-with col2:
-    currency_name = st.text_input("العملة", value="دولار")
-    agent_name = st.text_input("السيد / الجهة", value="صدام الهواش ابو كوار /معمل الرافدين")
-    amount_text = st.text_input("المبلغ كتابةً", value="مئة و ثلاثة و اربعون دولارا أمريكا")
-    new_balance = st.number_input("الرصيد بعد التسديد", value=0.0, step=1.0)
-
-notes = st.text_input("الملاحظات", value="")
-
-if st.button("إنشاء سند القبض PDF", type="primary"):
-    pdf_bytes = generate_sanad_qabd_pdf(
-        doc_no=doc_no,
-        doc_date=doc_date,
-        currency_name=currency_name,
-        agent_name=agent_name,
-        amount_num=amount_num,
-        amount_text=amount_text,
-        prev_balance=prev_balance,
-        new_balance=new_balance if new_balance != 0 else "",
-        notes=notes
-    )
+# --- 1. قسم الرئيسية ---
+if menu == "الرئيسية (لوحة التحكم)":
+    st.title("📊 لوحة تحكم المعمل")
+    st.write("مرحباً بك في نظام إدارة المعمل. يمكنك متابعة العمليات والحسابات من هنا.")
     
+    col1, col2, col3 = st.columns(3)
+    col1.metric("إجمالي الإنتاج اليومي", "1,250 وحدة")
+    col2.metric("إجمالي المبيعات", "$4,300")
+    col3.metric("الطلبيات المعلقة", "5 طلبيات")
+
+# --- 2. قسم الإنتاج ---
+elif menu == "إدارة الإنتاج والطلبيات":
+    st.title("📦 إدارة الإنتاج والطلبيات")
+    st.subheader("سجل الطلبيات الحالية")
+    st.info("هنا يتم عرض وتحديث خطوط الإنتاج والطلبيات الخاصة بالعملاء.")
+
+# --- 3. قسم الحسابات والسندات (وفيه طباعة السند الفارغ) ---
+elif menu == "الحسابات والسندات":
+    st.title("💰 قسم الحسابات والسندات المالية")
+    
+    st.subheader("📄 طباعة نماذج السندات الورقية")
+    st.write("اضغط على الزر أدناه لتحميل أو طباعة **سند قبض فارغ** جاهز للطباعة يدوياً وبنفس مقاسات وتقسيمات الورق الرسمي للمعمل:")
+    
+    # زر تحميل السند الفارغ فوراً
+    blank_pdf = generate_blank_sanad_qabd_pdf()
     st.download_button(
-        label="📥 تحميل السند (PDF)",
-        data=pdf_bytes,
-        file_name=f"Sanad_{doc_no}.pdf",
-        mime="application/pdf"
+        label="🖨️ تحميل / طباعة سند قبض فارغ (PDF)",
+        data=blank_pdf,
+        file_name="Sanad_Qabd_Blank.pdf",
+        mime="application/pdf",
+        type="primary"
     )
+
+# --- 4. قسم المخزن ---
+elif menu == "المخزن والمواد الخام":
+    st.title("🏗️ إدارة المخزن والمواد الخام")
+    st.write("متابعة حركة المخزون والمواد الأولية للمعمل.")
