@@ -7,78 +7,52 @@ import arabic_reshaper
 from bidi.algorithm import get_display
 
 # --- إعدادات الصفحة والنظام ---
-st.set_page_config(page_title="نظام إدارة معمل برادات الماء", layout="wide")
+st.set_page_config(page_title="نظام إدارة معمل برادات الماء الشامل", layout="wide")
 
-# --- 1. تهيئة المخزون الافتراضي للمواد الخام (28 مادة أساسية لصناعة براد الماء) ---
-if "inventory" not in st.session_state:
-    st.session_state.inventory = [
-        {"المادة الخام": "ضغاط (كومبريسور)", "الكمية بالمخزن": 50, "الوحدة": "قطعة"},
-        {"المادة الخام": "مكثف (شبك تبريد)", "الكمية بالمخزن": 50, "الوحدة": "قطعة"},
-        {"المادة الخام": "مبخر (مبرد الخزان)", "الكمية بالمخزن": 50, "الوحدة": "قطعة"},
-        {"المادة الخام": "خزان استيل ماء بارد", "الكمية بالمخزن": 50, "الوحدة": "قطعة"},
-        {"المادة الخام": "خزان ماء حار", "الكمية بالمخزن": 50, "الوحدة": "قطعة"},
-        {"المادة الخام": "غاز تبريد (R134a/R600a)", "الكمية بالمخزن": 100, "الوحدة": "كغم"},
-        {"المادة الخام": "أنبوب شعري (Capillary)", "الكمية بالمخزن": 200, "الوحدة": "متر"},
-        {"المادة الخام": "أنبوب نحاس تبريد", "الكمية بالمخزن": 300, "الوحدة": "متر"},
-        {"المادة الخام": "فلتر منقي غاز", "الكمية بالمخزن": 100, "الوحدة": "قطعة"},
-        {"المادة الخام": "ترموستات حرارة (حراري/برودة)", "الكمية بالمخزن": 100, "الوحدة": "قطعة"},
-        {"المادة الخام": "هيكل صاج خارجي", "الكمية بالمخزن": 50, "الوحدة": "طقم"},
-        {"المادة الخام": "قاعدة بلاستيك سفلية", "الكمية بالمخزن": 50, "الوحدة": "قطعة"},
-        {"المادة الخام": "غطاء علوي بلاستيك", "الكمية بالمخزن": 50, "الوحدة": "قطعة"},
-        {"المادة الخام": "عازل فوم (Foom)", "الكمية بالمخزن": 80, "الوحدة": "كغم"},
-        {"المادة الخام": "حنفية ماء بارد", "الكمية بالمخزن": 100, "الوحدة": "قطعة"},
-        {"المادة الخام": "حنفية ماء حار (أمان)", "الكمية بالمخزن": 100, "الوحدة": "قطعة"},
-        {"المادة الخام": "حنفية ماء عادي", "الكمية بالمخزن": 100, "الوحدة": "قطعة"},
-        {"المادة الخام": "أسلاك كهربائية وتوصيلات", "الكمية بالمخزن": 500, "الوحدة": "متر"},
-        {"المادة الخام": "قابس كهرباء (سلك فيشة)", "الكمية بالمخزن": 60, "الوحدة": "قطعة"},
-        {"المادة الخام": "مفتاح تشغيل/إطفاء", "الكمية بالمخزن": 120, "الوحدة": "قطعة"},
-        {"المادة الخام": "لمبات إشارة LED", "الكمية بالمخزن": 200, "الوحدة": "قطعة"},
-        {"المادة الخام": "صينية تجميع التقطير", "الكمية بالمخزن": 60, "الوحدة": "قطعة"},
-        {"المادة الخام": "براغي وتثبيت متنوعة", "الكمية بالمخزن": 5000, "الوحدة": "برغي"},
-        {"المادة الخام": "قواعد مطاطية لامتزاز الاهتزاز", "الكمية بالمخزن": 200, "الوحدة": "قطعة"},
-        {"المادة الخام": "كارتون تغليف خارجي", "الكمية بالمخزن": 50, "الوحدة": "قطعة"},
-        {"المادة الخام": "فلين حماية للتغليف", "الكمية بالمخزن": 100, "الوحدة": "طقم"},
-        {"المادة الخام": "كتالوج/دليل المستخدم", "الكمية بالمخزن": 100, "الوحدة": "نسخة"},
-        {"المادة الخام": "لاصق وشعار المعمل", "الكمية بالمخزن": 200, "الوحدة": "ملصق"}
-    ]
-
-# --- 2. قائمة المكونات الـ 28 المطلوبة لتصنيع (1 براد ماء) ---
-if "cooler_bom" not in st.session_state:
-    st.session_state.cooler_bom = {
-        "ضغاط (كومبريسور)": 1,
-        "مكثف (شبك تبريد)": 1,
-        "مبخر (مبرد الخزان)": 1,
-        "خزان استيل ماء بارد": 1,
-        "خزان ماء حار": 1,
-        "غاز تبريد (R134a/R600a)": 0.5,
-        "أنبوب شعري (Capillary)": 1.5,
-        "أنبوب نحاس تبريد": 2,
-        "فلتر منقي غاز": 1,
-        "ترموستات حرارة (حراري/برودة)": 2,
-        "هيكل صاج خارجي": 1,
-        "قاعدة بلاستيك سفلية": 1,
-        "غطاء علوي بلاستيك": 1,
-        "عازل فوم (Foom)": 1,
-        "حنفية ماء بارد": 1,
-        "حنفية ماء حار (أمان)": 1,
-        "حنفية ماء عادي": 1,
-        "أسلاك كهربائية وتوصيلات": 3,
-        "قابس كهرباء (سلك فيشة)": 1,
-        "مفتاح تشغيل/إطفاء": 2,
-        "لمبات إشارة LED": 3,
-        "صينية تجميع التقطير": 1,
-        "براغي وتثبيت متنوعة": 30,
-        "قواعد مطاطية لامتزاز الاهتزاز": 4,
-        "كارتون تغليف خارجي": 1,
-        "فلين حماية للتغليف": 1,
-        "كتالوج/دليل المستخدم": 1,
-        "لاصق وشعار المعمل": 2
+# --- 1. تهيئة ذاكرة المخزون الديناميكي (المواد الخام) ---
+if "raw_materials" not in st.session_state:
+    # قائمة أولية بـ 28 مادة أساسية ويمكن تعديلها أو حذفها بالكامل
+    st.session_state.raw_materials = {
+        "ضغاط (كومبريسور)": {"qty": 50, "unit": "قطعة"},
+        "مكثف (شبك تبريد)": {"qty": 50, "unit": "قطعة"},
+        "مبخر (مبرد الخزان)": {"qty": 50, "unit": "قطعة"},
+        "خزان استيل ماء بارد": {"qty": 50, "unit": "قطعة"},
+        "خزان ماء حار": {"qty": 50, "unit": "قطعة"},
+        "غاز تبريد (R134a/R600a)": {"qty": 100, "unit": "كغم"},
+        "أنبوب شعري (Capillary)": {"qty": 200, "unit": "متر"},
+        "أنبوب نحاس تبريد": {"qty": 300, "unit": "متر"},
+        "فلتر منقي غاز": {"qty": 100, "unit": "قطعة"},
+        "ترموستات حرارة (حراري/برودة)": {"qty": 100, "unit": "قطعة"},
+        "هيكل صاج خارجي": {"qty": 50, "unit": "طقم"},
+        "قاعدة بلاستيك سفلية": {"qty": 50, "unit": "قطعة"},
+        "غطاء علوي بلاستيك": {"qty": 50, "unit": "قطعة"},
+        "عازل فوم (Foom)": {"qty": 80, "unit": "كغم"},
+        "حنفية ماء بارد": {"qty": 100, "unit": "قطعة"},
+        "حنفية ماء حار (أمان)": {"qty": 100, "unit": "قطعة"},
+        "حنفية ماء عادي": {"qty": 100, "unit": "قطعة"},
+        "أسلاك كهربائية وتوصيلات": {"qty": 500, "unit": "متر"},
+        "قابس كهرباء (سلك فيشة)": {"qty": 60, "unit": "قطعة"},
+        "مفتاح تشغيل/إطفاء": {"qty": 120, "unit": "قطعة"},
+        "لمبات إشارة LED": {"qty": 200, "unit": "قطعة"},
+        "صينية تجميع التقطير": {"qty": 60, "unit": "قطعة"},
+        "براغي وتثبيت متنوعة": {"qty": 5000, "unit": "برغي"},
+        "قواعد مطاطية لامتزاز الاهتزاز": {"qty": 200, "unit": "قطعة"},
+        "كارتون تغليف خارجي": {"qty": 50, "unit": "قطعة"},
+        "فلين حماية للتغليف": {"qty": 100, "unit": "طقم"},
+        "كتالوج/دليل المستخدم": {"qty": 100, "unit": "نسخة"},
+        "لاصق وشعار المعمل": {"qty": 200, "unit": "ملصق"}
     }
 
-if "produced_coolers" not in st.session_state:
-    st.session_state.produced_coolers = 0
+# --- 2. تهيئة أنواع البرادات المُنتجة مع مكوناتها الديناميكية ---
+if "product_models" not in st.session_state:
+    st.session_state.product_models = {
+        "براد ماء قياسي (3 حنفيات)": {
+            "recipe": {k: 1 for k in st.session_state.raw_materials.keys()}, # استهلاك افتراضي
+            "stock": 0
+        }
+    }
 
-# --- دالة معالجة النصوص العربية ---
+# --- دالة معالجة النصوص العربية للـ PDF ---
 def ar(text):
     if not text:
         return ""
@@ -161,99 +135,173 @@ def generate_blank_sanad_qabd_pdf():
 #     واجهة نظام إدارة معمل برادات الماء
 # ==========================================
 
-st.sidebar.title("❄️ معمل برادات الماء")
+st.sidebar.title("⚙️ نظام المعمل الشامل")
 menu = st.sidebar.radio(
     "القائمة الرئيسية:",
-    ["الرئيسية (لوحة التحكم)", "خط إنتاج برادات الماء", "مخزن المواد الخام (28 مادة)", "الحسابات والسندات"]
+    [
+        "الرئيسية (لوحة التحكم)", 
+        "إدارة المواد الخام (المخزن)", 
+        "إدارة موديلات وتصاميم البرادات", 
+        "خط الإنتاج والتصنيع", 
+        "الحسابات والسندات"
+    ]
 )
 
-# --- 1. لوحة التحكم ---
+# --- 1. الرئيسية ---
 if menu == "الرئيسية (لوحة التحكم)":
-    st.title("📊 لوحة تحكم المعمل")
+    st.title("📊 لوحة تحكم المعمل الشاملة")
+    
+    tot_raw_types = len(st.session_state.raw_materials)
+    tot_models = len(st.session_state.product_models)
+    tot_produced = sum(m["stock"] for m in st.session_state.product_models.values())
     
     col1, col2, col3 = st.columns(3)
-    col1.metric("إجمالي برادات الماء المصنعة", f"{st.session_state.produced_coolers} براد")
-    col2.metric("أنواع المواد الخام المسجلة", f"{len(st.session_state.inventory)} مادة")
-    col3.metric("حالة خط الإنتاج", "جاهز للعمل 🟢")
+    col1.metric("المواد الخام المسجلة", f"{tot_raw_types} مادة")
+    col2.metric("أنواع البرادات المصممة", f"{tot_models} موديل")
+    col3.metric("إجمالي البرادات الجاهزة بالمخزن", f"{tot_produced} براد")
 
     st.divider()
-    st.subheader("📋 خريطة استهلاك براد الماء الموحد (28 مادة خام)")
-    bom_df = pd.DataFrame([
-        {"المادة الخام": k, "الكمية المطلوبة للبراد الواحد": v} for k, v in st.session_state.cooler_bom.items()
-    ])
-    st.dataframe(bom_df, use_container_width=True)
+    st.subheader("📦 مخزون البرادات المصنعة الحالي")
+    prod_data = [{"نوع البراد / الموديل": k, "الكمية الجاهزة بالمخزن": v["stock"]} for k, v in st.session_state.product_models.items()]
+    st.dataframe(pd.DataFrame(prod_data), use_container_width=True)
 
-# --- 2. خط الإنتاج (تصنيع برادات الماء وخصم المواد الـ 28 تلقائياً) ---
-elif menu == "خط إنتاج برادات الماء":
-    st.title("🏭 خط إنتاج وتجميع برادات الماء")
-    st.write("عند تحديد عدد البرادات المطلوبة للإنتاج، سيقوم النظام بالتحقق من المواد الخام الـ 28 وخصمها أوتوماتيكياً من المخزن.")
+# --- 2. إدارة المواد الخام (حرية كاملة للتعديل والتعامل) ---
+elif menu == "إدارة المواد الخام (المخزن)":
+    st.title("🏗️ حرية إدارة المواد الخام بالمخزن")
 
-    c1, c2 = st.columns([2, 1])
-    with c1:
-        coolers_to_make = st.number_input("أدخل عدد برادات الماء المراد تصنيعها الآن:", min_value=1, value=5, step=1)
+    col_a, col_b = st.columns(2)
     
-    with c2:
-        st.write("")
-        st.write("")
-        start_btn = st.button("🚀 البدء بتصنيع البرادات", type="primary")
+    # ➕ إضافة مادة خام جديدة
+    with col_a:
+        with st.expander("➕ إضافة مادة خام جديدة", expanded=True):
+            with st.form("add_mat_form", clear_on_submit=True):
+                m_name = st.text_input("اسم المادة الخام الجديدة")
+                m_qty = st.number_input("الكمية الأولية", min_value=0, value=100)
+                m_unit = st.text_input("الوحدة (قطعة / متر / كغم...)", value="قطعة")
+                if st.form_submit_button("إضافة للمخزن"):
+                    if m_name.strip():
+                        st.session_state.raw_materials[m_name] = {"qty": m_qty, "unit": m_unit}
+                        st.success(f"تمت إضافة ({m_name}) بنجاح!")
+                        st.rerun()
 
-    if start_btn:
-        # فحص توفر المواد الـ 28
-        missing_materials = []
-        for mat_name, req_qty_per_unit in st.session_state.cooler_bom.items():
-            total_needed = req_qty_per_unit * coolers_to_make
-            # البحث في المخزون
-            stock_item = next((item for item in st.session_state.inventory if item["المادة الخام"] == mat_name), None)
-            
-            if not stock_item or stock_item["الكمية بالمخزن"] < total_needed:
-                available = stock_item["الكمية بالمخزن"] if stock_item else 0
-                missing_materials.append(f"- {mat_name}: المطلوب {total_needed}، المتاح بالمخزن {available}")
-
-        if missing_materials:
-            st.error("❌ لا يمكن البدء بالإنتاج! هناك نقص في بعض المواد الخام الـ 28 التالية:")
-            for m in missing_materials:
-                st.write(m)
-        else:
-            # خصم كافة المواد الـ 28
-            for mat_name, req_qty_per_unit in st.session_state.cooler_bom.items():
-                total_needed = req_qty_per_unit * coolers_to_make
-                stock_item = next(item for item in st.session_state.inventory if item["المادة الخام"] == mat_name)
-                stock_item["الكمية بالمخزن"] -= total_needed
-
-            st.session_state.produced_coolers += coolers_to_make
-            st.balloons()
-            st.success(f"🎉 تم تصنيع ({coolers_to_make}) براد ماء بنجاح! وتم خصم جميع المواد الخام الـ 28 من المخزن بنجاح.")
-
-# --- 3. إدارة مخزن المواد الخام الـ 28 ---
-elif menu == "مخزن المواد الخام (28 مادة)":
-    st.title("🏗️ مخزن المواد الخام والمكونات")
-    
-    # إضافة مادة خام جديدة إن لزم الأمر
-    with st.expander("➕ إضافة أو توريد شحنة مواد خام"):
-        with st.form("add_mat_form", clear_on_submit=True):
-            col_a, col_b, col_c = st.columns(3)
-            with col_a:
-                new_mat = st.text_input("اسم المادة الخام")
-            with col_b:
-                new_qty = st.number_input("الكمية الواردة", min_value=1, value=50)
-            with col_c:
-                new_unit = st.text_input("الوحدة (قطعة / متر / كغم...)", value="قطعة")
-            
-            if st.form_submit_button("حفظ الشحنة"):
-                if new_mat.strip():
-                    # فحص إن كانت موجودة مسبقاً لإضافة الكمية
-                    existing = next((item for item in st.session_state.inventory if item["المادة الخام"] == new_mat), None)
-                    if existing:
-                        existing["الكمية بالمخزن"] += new_qty
-                    else:
-                        st.session_state.inventory.append({"المادة الخام": new_mat, "الكمية بالمخزن": new_qty, "الوحدة": new_unit})
-                    st.success(f"تم تحديث مخزون {new_mat} بنجاح!")
+    # 🗑️ تعديل أو حذف مادة خام
+    with col_b:
+        with st.expander("🛠️ تعديل كمية أو حذف مادة خام", expanded=True):
+            if st.session_state.raw_materials:
+                selected_mat = st.selectbox("اختر المادة الخام:", options=list(st.session_state.raw_materials.keys()))
+                new_qty_val = st.number_input("الكمية الجديدة بالمخزن:", value=st.session_state.raw_materials[selected_mat]["qty"])
+                
+                c_btn1, c_btn2 = st.columns(2)
+                if c_btn1.button("تحديث الكمية"):
+                    st.session_state.raw_materials[selected_mat]["qty"] = new_qty_val
+                    st.success("تم التحديث!")
+                    st.rerun()
+                if c_btn2.button("حذف المادة تماماً", type="primary"):
+                    del st.session_state.raw_materials[selected_mat]
+                    st.success("تم الحذف!")
                     st.rerun()
 
-    st.subheader("📋 جدول كميات المواد الخام الحالية بالمخزن")
-    st.dataframe(pd.DataFrame(st.session_state.inventory), use_container_width=True)
+    st.subheader("📋 جدول المواد الخام المتوفرة حالياً")
+    raw_df = pd.DataFrame([
+        {"اسم المادة الخام": k, "الكمية المتاحة": v["qty"], "الوحدة": v["unit"]} 
+        for k, v in st.session_state.raw_materials.items()
+    ])
+    st.dataframe(raw_df, use_container_width=True)
 
-# --- 4. قسم الحسابات والسندات ---
+# --- 3. إدارة موديلات البرادات وتحديد شجرة المكونات (BOM) ---
+elif menu == "إدارة موديلات وتصاميم البرادات":
+    st.title("📐 تصميم وإضافة موديلات برادات جديدة")
+    st.write("يمكنك هنا إضافة موديل براد جديد وتحديد قائمة المواد الخام التي يستهلكها والكمية المحددة لكل قطعة.")
+
+    with st.expander("➕ إضافة موديل براد جديد وتحديد معايير تصنيعه", expanded=True):
+        new_model_name = st.text_input("اسم موديل البراد الجديد (مثال: براد حافظة طعام، براد 4 حنفيات...)")
+        
+        st.write("---")
+        st.write("🎯 **حدد المواد الخام التي يستهلكها هذا الموديل والكمية لكل براد واحد:**")
+        
+        # قائمة ديناميكية لاختيار المواد والكميات
+        selected_recipe = {}
+        cols = st.columns(2)
+        for idx, (mat, data) in enumerate(st.session_state.raw_materials.items()):
+            col = cols[idx % 2]
+            use_it = col.checkbox(f"استهلاك: {mat} ({data['unit']})", value=True, key=f"chk_{mat}")
+            if use_it:
+                qty_needed = col.number_input(f"الكمية لـ ({mat}):", min_value=0.1, value=1.0, step=0.5, key=f"num_{mat}")
+                selected_recipe[mat] = qty_needed
+
+        if st.button("حفظ وحفظ الموديل الجديد", type="primary"):
+            if new_model_name.strip():
+                if selected_recipe:
+                    st.session_state.product_models[new_model_name] = {
+                        "recipe": selected_recipe,
+                        "stock": 0
+                    }
+                    st.success(f"🎉 تم حفظ الموديل الجديد ({new_model_name}) بنجاح مع ربطه بالمواد المحددة!")
+                    st.rerun()
+                else:
+                    st.error("يرجى اختيار مادة خام واحدة على الأقل لإنتاج هذا الموديل.")
+            else:
+                st.error("يرجى إدخال اسم الموديل.")
+
+    st.subheader("📋 الموديلات المسجلة حالياً ومعادلات إنتاجها")
+    for model_name, info in st.session_state.product_models.items():
+        with st.expander(f"🔹 موديل: {model_name} (المخزون: {info['stock']} قطعة)"):
+            st.write("**المواد الخام المستهلكة لإنتاج قطعة واحدة:**")
+            st.json(info["recipe"])
+
+# --- 4. خط الإنتاج والتصنيع ---
+elif menu == "خط الإنتاج والتصنيع":
+    st.title("🏭 خط الإنتاج الفعلي")
+    st.write("اختر نوع البراد والمراد تصنيعه وسيتم فحص وخصم المواد الخام ديناميكياً.")
+
+    if not st.session_state.product_models:
+        st.warning("لا توجد موديلات برادات مسجلة! قم بإضافة موديل من قسم 'إدارة موديلات وتصاميم البرادات'.")
+    else:
+        col_p1, col_p2 = st.columns(2)
+        with col_p1:
+            selected_model = st.selectbox("اختر الموديل المراد تصنيعه:", options=list(st.session_state.product_models.keys()))
+        with col_p2:
+            qty_to_build = st.number_input("العدد المطلوب تصنيعه:", min_value=1, value=5, step=1)
+
+        recipe = st.session_state.product_models[selected_model]["recipe"]
+        
+        # عرض شاشة معاينة قبل الإنتاج
+        st.subheader("🔍 معاينة المواد المطلوبة لهذا أمر الإنتاج:")
+        req_df_list = []
+        can_produce = True
+        
+        for mat, amount_per_unit in recipe.items():
+            tot_req = amount_per_unit * qty_to_build
+            available = st.session_state.raw_materials.get(mat, {}).get("qty", 0)
+            status = "✅ متوفر" if available >= tot_req else "❌ غير كافٍ"
+            if available < tot_req:
+                can_produce = False
+            req_df_list.append({
+                "المادة الخام": mat,
+                "المطلوب للقطعة": amount_per_unit,
+                "إجمالي المطلوب": tot_req,
+                "المتاح بالمخزن": available,
+                "الحالة": status
+            })
+            
+        st.dataframe(pd.DataFrame(req_df_list), use_container_width=True)
+
+        if st.button("🚀 بدء تصنيع الطلبية وتحديث المخزن", type="primary"):
+            if not can_produce:
+                st.error("❌ لا يمكن بدء الإنتاج بسبب نقص في بعض المواد الخام الموضحة أعلاه!")
+            else:
+                # خصم المواد
+                for mat, amount_per_unit in recipe.items():
+                    tot_req = amount_per_unit * qty_to_build
+                    st.session_state.raw_materials[mat]["qty"] -= tot_req
+                
+                # زيادة مخزون البرادات
+                st.session_state.product_models[selected_model]["stock"] += qty_to_build
+                st.balloons()
+                st.success(f"🎉 تم تصنيع {qty_to_build} قطعة من ({selected_model}) بنجاح وتم تحديث المخزن!")
+                st.rerun()
+
+# --- 5. قسم الحسابات والسندات ---
 elif menu == "الحسابات والسندات":
     st.title("💰 قسم الحسابات والسندات المالية")
     
