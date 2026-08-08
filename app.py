@@ -1,416 +1,356 @@
-import os
-import requests
-import streamlit as st
-import pandas as pd
-from fpdf import FPDF
-import arabic_reshaper
-from bidi.algorithm import get_display
+from flask import Flask, render_template_string, request, redirect, url_for, flash
+import sqlite3
 
-# --- إعدادات الصفحة والنظام ---
-st.set_page_config(page_title="نظام إدارة معمل برادات الماء الشامل", layout="wide")
+app = Flask(__name__)
+app.secret_key = 'cooler_factory_secret_key'
 
-# --- 1. تهيئة ذاكرة المواد الخام ---
-if "raw_materials" not in st.session_state:
-    st.session_state.raw_materials = {}
-
-# --- 2. تهيئة ذاكرة موديلات البرادات ---
-if "product_models" not in st.session_state:
-    st.session_state.product_models = {}
-
-# --- 3. تهيئة ذاكرة الوكلاء (الاسم، الرصيد السابق/الدين) ---
-if "agents" not in st.session_state:
-    st.session_state.agents = {
-        "معرض البركة للتجارة": {"balance": 1500.0, "phone": "07700000000"}  # balance موجب = دين على الوكيل
-    }
-
-# --- دالة معالجة النصوص العربية للـ PDF ---
-def ar(text):
-    if not text:
-        return ""
-    reshaped_text = arabic_reshaper.reshape(str(text))
-    return get_display(reshaped_text)
-
-# --- تنزيل الخط العربي للـ PDF ---
-def ensure_arabic_font():
-    font_path = "Amiri-Regular.ttf"
-    if not os.path.exists(font_path):
-        url = "https://github.com/google/fonts/raw/main/ofl/amiri/Amiri-Regular.ttf"
-        response = requests.get(url)
-        with open(font_path, "wb") as f:
-            f.write(response.content)
-    return font_path
-
-# --- دالة إنشاء (سند قبض وموقف مالي للوكيل) PDF ---
-def generate_receipt_pdf(agent_name, paid_amount, prev_balance, new_balance):
-    font_path = ensure_arabic_font()
-    pdf = FPDF(orientation='L', unit='mm', format='A5')
-    pdf.add_page()
-    pdf.add_font("Amiri", "", font_path)
-
-    pdf.set_font("Amiri", "", 22)
-    pdf.set_xy(10, 10)
-    pdf.cell(190, 10, ar("سند قبض وموقف مالي"), align="C")
-
-    pdf.set_font("Amiri", "", 12)
-
-    # تفاصيل المستند
-    y = 25
-    pdf.set_xy(10, y)
-    pdf.cell(190, 10, ar(f"استلمنا من السيد / الوكيل: {agent_name}"), border=1, align="R")
+# --- إعداد قاعدة البيانات SQLite ---
+def init_db():
+    conn = sqlite3.connect('factory.db')
+    cursor = conn.cursor()
     
-    y += 12
-    pdf.set_xy(10, y)
-    pdf.cell(190, 10, ar(f"المبلغ المسدد حالياً: ${paid_amount:,.2f}"), border=1, align="R")
-
-    # جدول الحسابات
-    y += 15
-    pdf.set_xy(105, y)
-    pdf.cell(65, 10, ar(f"${prev_balance:,.2f}"), border=1, align="C")
-    pdf.cell(30, 10, ar("الرصيد السابق"), border=1, align="C")
-
-    pdf.set_xy(10, y)
-    pdf.cell(65, 10, ar(f"${paid_amount:,.2f}"), border=1, align="C")
-    pdf.cell(30, 10, ar("المبلغ الواصل"), border=1, align="C")
-
-    y += 10
-    pdf.set_xy(105, y)
-    pdf.cell(65, 10, ar(f"${new_balance:,.2f}"), border=1, align="C")
-    pdf.cell(30, 10, ar("الرصيد المتبقي (الدين)"), border=1, align="C")
-
-    pdf_out = pdf.output()
-    return bytes(pdf_out) if not isinstance(pdf_out, str) else pdf_out.encode('latin1')
-
-# --- دالة إنشاء (قائمة حسابات / فاتورة بضاعة) PDF ---
-def generate_invoice_pdf(agent_name, items_list, grand_total):
-    font_path = ensure_arabic_font()
-    pdf = FPDF(orientation='P', unit='mm', format='A5')
-    pdf.add_page()
-    pdf.add_font("Amiri", "", font_path)
-
-    pdf.set_font("Amiri", "", 20)
-    pdf.cell(130, 10, ar("قائمة حساب بضاعة (فاتورة مبيعات)"), align="C", ln=True)
-    pdf.set_font("Amiri", "", 12)
-    pdf.cell(130, 8, ar(f"الوكيل: {agent_name}"), ln=True, align="R")
-    pdf.ln(4)
-
-    # عناوين الجدول
-    pdf.cell(30, 8, ar("الإجمالي ($)"), border=1, align="C")
-    pdf.cell(30, 8, ar("السعر ($)"), border=1, align="C")
-    pdf.cell(20, 8, ar("الكمية"), border=1, align="C")
-    pdf.cell(50, 8, ar("الموديل / التفاصيل"), border=1, align="C")
-    pdf.ln()
-
-    # عناصر الفاتورة
-    for item in items_list:
-        pdf.cell(30, 8, ar(f"${item['total']:,.2f}"), border=1, align="C")
-        pdf.cell(30, 8, ar(f"${item['price']:,.2f}"), border=1, align="C")
-        pdf.cell(20, 8, ar(str(item['qty'])), border=1, align="C")
-        pdf.cell(50, 8, ar(item['model']), border=1, align="C")
-        pdf.ln()
-
-    pdf.set_font("Amiri", "", 12)
-    pdf.cell(80, 10, ar(f"${grand_total:,.2f}"), border=1, align="C")
-    pdf.cell(50, 10, ar("إجمالي القائمة الكلي"), border=1, align="C")
-
-    pdf_out = pdf.output()
-    return bytes(pdf_out) if not isinstance(pdf_out, str) else pdf_out.encode('latin1')
-
-
-# ==========================================
-#     واجهة نظام إدارة معمل برادات الماء
-# ==========================================
-
-st.sidebar.title("⚙️ نظام المعمل الشامل")
-
-if st.sidebar.button("🗑️ مسح وتفريغ كل البيانات الافتراضية", type="secondary"):
-    st.session_state.raw_materials = {}
-    st.session_state.product_models = {}
-    st.session_state.agents = {}
-    st.sidebar.success("تم مسح كافة البيانات بنجاح!")
-    st.rerun()
-
-st.sidebar.markdown("---")
-menu = st.sidebar.radio(
-    "القائمة الرئيسية:",
-    [
-        "الرئيسية (لوحة التحكم)", 
-        "إدارة الوكلاء والمبيعات 🤝", 
-        "إدارة المواد الخام (المخزن)", 
-        "إدارة موديلات البرادات", 
-        "خط الإنتاج والتصنيع", 
-        "الحسابات والسندات"
-    ]
-)
-
-# --- 1. الرئيسية ---
-if menu == "الرئيسية (لوحة التحكم)":
-    st.title("📊 لوحة تحكم المعمل الشاملة")
+    # 1. جدول المواد الخام (28 مادة)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS raw_materials (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            quantity REAL DEFAULT 0,
+            unit_cost REAL DEFAULT 0
+        )
+    ''')
     
-    tot_raw_types = len(st.session_state.raw_materials)
-    tot_models = len(st.session_state.product_models)
-    tot_agents = len(st.session_state.agents)
-    tot_debts = sum(a["balance"] for a in st.session_state.agents.values()) if st.session_state.agents else 0
+    # 2. جدول مخزن البرادات الجاهزة (المنتج التام)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS finished_coolers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            model_name TEXT NOT NULL,
+            stock INTEGER DEFAULT 0,
+            cost_price REAL DEFAULT 0,
+            selling_price REAL DEFAULT 0
+        )
+    ''')
     
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("المواد الخام المسجلة", f"{tot_raw_types} مادة")
-    col2.metric("أنواع البرادات المصممة", f"{tot_models} موديل")
-    col3.metric("عدد الوكلاء المسجلين", f"{tot_agents} وكيل")
-    col4.metric("إجمالي الديون على الوكلاء", f"${tot_debts:,.2f}")
+    # 3. جدول الوكلاء والزبائن والديون
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS clients (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            phone TEXT,
+            balance REAL DEFAULT 0 -- موجب: عليه دين / سالب: له رصيد
+        )
+    ''')
+    
+    # 4. جدول المعاملات والوصولات
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            client_id INTEGER,
+            type TEXT, -- 'INVOICE' (فاتورة بيع) أو 'PAYMENT' (سند قبض)
+            amount REAL,
+            details TEXT,
+            date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (client_id) REFERENCES clients (id)
+        )
+    ''')
+    
+    conn.commit()
+    conn.close()
 
-# --- 2. إدارة الوكلاء والمبيعات (الجديدة) ---
-elif menu == "إدارة الوكلاء والمبيعات 🤝":
-    st.title("🤝 إدارة الوكلاء والمبيعات وإصدار الفواتير والسندات")
+init_db()
 
-    tab1, tab2, tab3 = st.tabs(["🛒 عملية بيع جديدة وتصدير القوائم", "👥 إضافة وإدارة سجل الوكلاء", "📋 كشف حسابات الديون"])
+# --- القوالب الواجهات (HTML Direct Strings) ---
+BASE_TEMPLATE = '''
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام إدارة معمل البرادات</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
+    <style>
+        body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .navbar { background-color: #0d6efd; }
+        .card { border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            body { background-color: #fff; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4 no-print">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="#">🧊 معمل برادات الماء</a>
+            <div class="navbar-nav">
+                <a class="nav-link text-white" href="{{ url_for('index') }}">الرئيسية</a>
+                <a class="nav-link text-white" href="{{ url_for('clients') }}">الوكلاء والديون</a>
+                <a class="nav-link text-white" href="{{ url_for('materials') }}">المواد الخام (28 مادة)</a>
+                <a class="nav-link text-white" href="{{ url_for('inventory') }}">مخزن البرادات</a>
+            </div>
+        </div>
+    </nav>
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>
+'''
 
-    # 🛒 1. عملية بيع جديدة
-    with tab1:
-        st.subheader("🛒 تسجيل عملية بيع بضاعة لوكيل")
-        if not st.session_state.agents:
-            st.warning("⚠️ لا يوجد وكلاء مسجلون! أضف وكيلاً أولاً من تبويب 'إضافة وإدارة سجل الوكلاء'.")
-        elif not st.session_state.product_models:
-            st.warning("⚠️ لا توجد موديلات برادات مسجلة للبيع!")
-        else:
-            col_sel1, col_sel2 = st.columns(2)
-            with col_sel1:
-                selected_agent = st.selectbox("اختر الوكيل:", options=list(st.session_state.agents.keys()))
-                agent_curr_balance = st.session_state.agents[selected_agent]["balance"]
-                st.info(f"💰 الرصيد الحالي للوكيل قبل الشراء: **${agent_curr_balance:,.2f}** ({'دَين عليه' if agent_curr_balance >= 0 else 'رصيد له'})")
-            
-            st.divider()
-            st.write("📦 **تحديد البضاعة المبيعة:**")
+# --- المسارات (Routes) ---
 
-            if "cart" not in st.session_state:
-                st.session_state.cart = []
+@app.route('/')
+def index():
+    conn = sqlite3.connect('factory.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM raw_materials")
+    mat_count = cursor.fetchone()[0]
+    cursor.execute("SELECT SUM(stock) FROM finished_coolers")
+    coolers_count = cursor.fetchone()[0] or 0
+    cursor.execute("SELECT SUM(balance) FROM clients WHERE balance > 0")
+    total_debts = cursor.fetchone()[0] or 0
+    conn.close()
+    
+    html = BASE_TEMPLATE + '''
+    {% extends "base" %}
+    {% block content %}
+    <h3 class="mb-4 text-center">لوحة تحكم معمل برادات الماء</h3>
+    <div class="row text-center g-3">
+        <div class="col-md-4">
+            <div class="card bg-primary text-white p-3">
+                <h5>إجمالي البرادات بالإنتاج/المخزن</h5>
+                <h2>{{ coolers_count }} براد</h2>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-warning text-dark p-3">
+                <h5>إجمالي ديون الوكلاء (لصالحنا)</h5>
+                <h2>{{ total_debts }} د.ع</h2>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success text-white p-3">
+                <h5>المواد الخام المسجلة</h5>
+                <h2>{{ mat_count }} مادة</h2>
+            </div>
+        </div>
+    </div>
+    {% endblock %}
+    '''
+    return render_template_string(html, mat_count=mat_count, coolers_count=coolers_count, total_debts=total_debts)
 
-            col_m1, col_m2, col_m3, col_m4 = st.columns([3, 2, 2, 1])
-            with col_m1:
-                p_model = st.selectbox("موديل البراد:", options=list(st.session_state.product_models.keys()))
-            with col_m2:
-                available_stock = st.session_state.product_models[p_model]["stock"]
-                p_qty = st.number_input("الكمية المبيعة:", min_value=1, max_value=max(1, available_stock), value=1)
-                st.caption(f"المتاح بالمخزن: {available_stock} قطعة")
-            with col_m3:
-                p_price = st.number_input("سعر البراد الواحد ($):", min_value=0.0, value=150.0, step=10.0)
-            with col_m4:
-                st.write("")
-                st.write("")
-                if st.button("➕ إضافة للفاتورة"):
-                    if available_stock >= p_qty:
-                        st.session_state.cart.append({
-                            "model": p_model,
-                            "qty": p_qty,
-                            "price": p_price,
-                            "total": p_qty * p_price
-                        })
-                        st.success("تمت الإضافة للفاتورة!")
-                    else:
-                        st.error("الكمية المطلوبة غير متوفرة في مخزن البرادات!")
-
-            # عرض قائمة البضاعة في السلة
-            if st.session_state.cart:
-                st.write("---")
-                st.subheader("📋 سلة البضاعة المحددة للفاتورة:")
-                cart_df = pd.DataFrame(st.session_state.cart)
-                st.dataframe(cart_df, use_container_width=True)
-
-                grand_total = sum(item["total"] for item in st.session_state.cart)
-                st.success(f"💵 **إجمالي قيمة البضاعة المبيعة:** **${grand_total:,.2f}**")
-
-                st.divider()
-                # التسديد والموقف المالي
-                col_pay1, col_pay2 = st.columns(2)
-                with col_pay1:
-                    paid_now = st.number_input("المبلغ المسدد نقداً من الوكيل الآن ($):", min_value=0.0, value=grand_total)
-                
-                new_balance = agent_curr_balance + grand_total - paid_now
-                with col_pay2:
-                    st.write("")
-                    st.warning(f"⚖️ **الرصيد المتبقي النهائي على الوكيل بعد هذه البيعة:** **${new_balance:,.2f}**")
-
-                if st.button("✅ إتمام عملية البيع وتحديث الحسابات والمخزن", type="primary"):
-                    # 1. خصم البرادات من مخزن المعمل
-                    for item in st.session_state.cart:
-                        st.session_state.product_models[item["model"]]["stock"] -= item["qty"]
-                    
-                    # 2. تحديث دَين الوكيل
-                    prev_bal = st.session_state.agents[selected_agent]["balance"]
-                    st.session_state.agents[selected_agent]["balance"] = new_balance
-
-                    st.balloons()
-                    st.success("🎉 تم تسجيل عملية البيع وخصم البضاعة من المخزن وتحديث رصيد الوكيل بنجاح!")
-
-                    # إنشاء الوصلين (سند قبض + قائمة حسابات)
-                    pdf_receipt = generate_receipt_pdf(selected_agent, paid_now, prev_bal, new_balance)
-                    pdf_invoice = generate_invoice_pdf(selected_agent, st.session_state.cart, grand_total)
-
-                    st.subheader("🖨️ طباعة المستندات المزدوجة:")
-                    col_pdf1, col_pdf2 = st.columns(2)
-                    with col_pdf1:
-                        st.download_button(
-                            label="📄 تحميل سند قبض وموقف مالي (PDF)",
-                            data=pdf_receipt,
-                            file_name=f"Sanad_Qabd_{selected_agent}.pdf",
-                            mime="application/pdf",
-                            type="primary"
-                        )
-                    with col_pdf2:
-                        st.download_button(
-                            label="🧾 تحميل قائمة حسابات البضاعة (PDF)",
-                            data=pdf_invoice,
-                            file_name=f"Invoice_{selected_agent}.pdf",
-                            mime="application/pdf"
-                        )
-
-                    # تفريغ السلة
-                    st.session_state.cart = []
-
-    # 👥 2. إضافة وإدارة سجل الوكلاء
-    with tab2:
-        st.subheader("➕ إضافة وكيل جديد")
-        with st.form("add_agent_form", clear_on_submit=True):
-            col_a1, col_a2, col_a3 = st.columns(3)
-            with col_a1:
-                ag_name = st.text_input("اسم الوكيل / المعرض")
-            with col_a2:
-                ag_phone = st.text_input("رقم الهاتف")
-            with col_a3:
-                ag_balance = st.number_input("الرصيد السابق ($) [موجب = دين عليه، سالب = طلب له]", value=0.0)
-
-            if st.form_submit_button("حفظ الوكيل"):
-                if ag_name.strip():
-                    st.session_state.agents[ag_name] = {"balance": ag_balance, "phone": ag_phone}
-                    st.success(f"تم حفظ الوكيل ({ag_name}) بنجاح!")
-                    st.rerun()
-
-        st.divider()
-        st.subheader("🗑️ حذف / تعديل بيانات وكيل")
-        if st.session_state.agents:
-            ag_to_del = st.selectbox("اختر الوكيل للتعديل أو الحذف:", options=list(st.session_state.agents.keys()))
-            if st.button("🗑️ حذف هذا الوكيل", type="primary"):
-                del st.session_state.agents[ag_to_del]
-                st.success("تم الحذف بنجاح!")
-                st.rerun()
-
-    # 📋 3. كشف حسابات الديون
-    with tab3:
-        st.subheader("📊 كشف الديون والأرصدة الحالية لجميع الوكلاء")
-        if st.session_state.agents:
-            agent_data = [
-                {"اسم الوكيل": k, "رقم الهاتف": v["phone"], "الرصيد المتبقي / الدين ($)": f"${v['balance']:,.2f}"}
-                for k, v in st.session_state.agents.items()
-            ]
-            st.dataframe(pd.DataFrame(agent_data), use_container_width=True)
-        else:
-            st.info("لا يوجد وكلاء مسجلون حالياً.")
-
-# --- 3. إدارة المواد الخام ---
-elif menu == "إدارة المواد الخام (المخزن)":
-    st.title("🏗️ إدارة المواد الخام بالمخزن")
-    # (نفس الكود الخاص بالخام)
-    col_a, col_b = st.columns(2)
-    with col_a:
-        with st.expander("➕ إضافة مادة خام جديدة", expanded=True):
-            with st.form("add_mat_form", clear_on_submit=True):
-                m_name = st.text_input("اسم المادة الخام الجديدة")
-                m_qty = st.number_input("الكمية الأولية", min_value=0, value=100)
-                m_unit = st.text_input("الوحدة (قطعة / متر / كغم...)", value="قطعة")
-                if st.form_submit_button("إضافة للمخزن"):
-                    if m_name.strip():
-                        st.session_state.raw_materials[m_name] = {"qty": m_qty, "unit": m_unit}
-                        st.success(f"تمت إضافة ({m_name}) بنجاح!")
-                        st.rerun()
-
-    with col_b:
-        with st.expander("🛠️ تعديل أو حذف مادة خام", expanded=True):
-            if st.session_state.raw_materials:
-                selected_mat = st.selectbox("اختر المادة الخام:", options=list(st.session_state.raw_materials.keys()))
-                new_qty_val = st.number_input("الكمية الجديدة بالمخزن:", value=st.session_state.raw_materials[selected_mat]["qty"])
-                
-                c_btn1, c_btn2 = st.columns(2)
-                if c_btn1.button("تحديث الكمية"):
-                    st.session_state.raw_materials[selected_mat]["qty"] = new_qty_val
-                    st.success("تم التحديث!")
-                    st.rerun()
-                if c_btn2.button("🗑️ حذف هذه المادة", type="primary"):
-                    del st.session_state.raw_materials[selected_mat]
-                    st.success("تم حذف المادة بنجاح!")
-                    st.rerun()
-
-    if st.session_state.raw_materials:
-        raw_df = pd.DataFrame([
-            {"اسم المادة الخام": k, "الكمية المتاحة": v["qty"], "الوحدة": v["unit"]} 
-            for k, v in st.session_state.raw_materials.items()
-        ])
-        st.dataframe(raw_df, use_container_width=True)
-
-# --- 4. إدارة موديلات البرادات ---
-elif menu == "إدارة موديلات البرادات":
-    st.title("📐 تصميم وتعديل وحذف موديلات البرادات")
-    with st.expander("➕ إضافة موديل براد جديد وتحديد معايير تصنيعه", expanded=True):
-        new_model_name = st.text_input("اسم موديل البراد الجديد")
-        selected_recipe = {}
-        if st.session_state.raw_materials:
-            cols = st.columns(2)
-            for idx, (mat, data) in enumerate(st.session_state.raw_materials.items()):
-                col = cols[idx % 2]
-                use_it = col.checkbox(f"استهلاك: {mat} ({data['unit']})", value=False, key=f"chk_{mat}")
-                if use_it:
-                    qty_needed = col.number_input(f"الكمية لـ ({mat}):", min_value=0.1, value=1.0, step=0.5, key=f"num_{mat}")
-                    selected_recipe[mat] = qty_needed
-
-        if st.button("حفظ الموديل الجديد", type="primary"):
-            if new_model_name.strip() and selected_recipe:
-                st.session_state.product_models[new_model_name] = {"recipe": selected_recipe, "stock": 0}
-                st.success(f"🎉 تم حفظ الموديل ({new_model_name}) بنجاح!")
-                st.rerun()
-
-    if st.session_state.product_models:
-        for model_name, info in list(st.session_state.product_models.items()):
-            col_m1, col_m2 = st.columns([4, 1])
-            with col_m1:
-                with st.expander(f"🔹 موديل: {model_name} (المخزون الحالي: {info['stock']} قطعة)"):
-                    st.json(info["recipe"])
-            with col_m2:
-                if st.button(f"🗑️ حذف {model_name}", key=f"del_{model_name}", type="primary"):
-                    del st.session_state.product_models[model_name]
-                    st.rerun()
-
-# --- 5. خط الإنتاج ---
-elif menu == "خط الإنتاج والتصنيع":
-    st.title("🏭 خط الإنتاج الفعلي")
-    if st.session_state.product_models:
-        col_p1, col_p2 = st.columns(2)
-        with col_p1:
-            selected_model = st.selectbox("اختر الموديل:", options=list(st.session_state.product_models.keys()))
-        with col_p2:
-            qty_to_build = st.number_input("العدد المطلوب تصنيعه:", min_value=1, value=5)
-
-        recipe = st.session_state.product_models[selected_model]["recipe"]
-        req_df_list = []
-        can_produce = True
+# 1. صفحة الوكلاء والديون
+@app.route('/clients', methods=['GET', 'POST'])
+def clients():
+    conn = sqlite3.connect('factory.db')
+    cursor = conn.cursor()
+    
+    if request.method == 'POST':
+        name = request.form['name']
+        phone = request.form['phone']
+        balance = request.form.get('balance', 0)
+        cursor.execute("INSERT INTO clients (name, phone, balance) VALUES (?, ?, ?)", (name, phone, balance))
+        conn.commit()
+        return redirect(url_for('clients'))
         
-        for mat, amount_per_unit in recipe.items():
-            tot_req = amount_per_unit * qty_to_build
-            available = st.session_state.raw_materials.get(mat, {}).get("qty", 0)
-            status = "✅ متوفر" if available >= tot_req else "❌ غير كافٍ"
-            if available < tot_req:
-                can_produce = False
-            req_df_list.append({"المادة الخام": mat, "إجمالي المطلوب": tot_req, "المتاح بالمخزن": available, "الحالة": status})
+    cursor.execute("SELECT * FROM clients")
+    clients_list = cursor.fetchall()
+    conn.close()
+    
+    html = BASE_TEMPLATE + '''
+    <h3>إدارة حسابات الوكلاء والديون</h3>
+    <div class="card p-3 mb-4 no-print">
+        <h5>إضافة وكيل جديد / دين سابق</h5>
+        <form method="POST" class="row g-2">
+            <div class="col-md-4"><input type="text" name="name" class="form-control" placeholder="اسم الوكيل/الزبون" required></div>
+            <div class="col-md-4"><input type="text" name="phone" class="form-control" placeholder="رقم الهاتف"></div>
+            <div class="col-md-2"><input type="number" step="0.01" name="balance" class="form-control" placeholder="الدين السابـق"></div>
+            <div class="col-md-2"><button type="submit" class="btn btn-primary w-100">إضافة</button></div>
+        </form>
+    </div>
+    
+    <table class="table table-bordered bg-white text-center">
+        <thead class="table-dark">
+            <tr>
+                <th>#</th><th>اسم الوكيل</th><th>الهاتف</th><th>الرصيد/الدين الحتلي</th><th>إجراءات / طباعة</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in clients_list %}
+            <tr>
+                <td>{{ c[0] }}</td>
+                <td>{{ c[1] }}</td>
+                <td>{{ c[2] }}</td>
+                <td class="fw-bold {% if c[3] > 0 %}text-danger{% else %}text-success{% endif %}">{{ c[3] }}</td>
+                <td>
+                    <a href="/client/{{ c[0] }}" class="btn btn-sm btn-info">عرض الحساب / سند قبض / وصل</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    '''
+    return render_template_string(html, clients_list=clients_list)
+
+# 2. كشف حساب الوكيل وطباعة الوصولات
+@app.route('/client/<int:client_id>', methods=['GET', 'POST'])
+def client_detail(client_id):
+    conn = sqlite3.connect('factory.db')
+    cursor = conn.cursor()
+    
+    if request.method == 'POST':
+        trans_type = request.form['type'] # 'PAYMENT' أو 'INVOICE'
+        amount = float(request.form['amount'])
+        details = request.form['details']
+        
+        # تحديث رصيد الوكيل
+        if trans_type == 'PAYMENT':
+            cursor.execute("UPDATE clients SET balance = balance - ? WHERE id = ?", (amount, client_id))
+        else:
+            cursor.execute("UPDATE clients SET balance = balance + ? WHERE id = ?", (amount, client_id))
             
-        st.dataframe(pd.DataFrame(req_df_list), use_container_width=True)
+        cursor.execute("INSERT INTO transactions (client_id, type, amount, details) VALUES (?, ?, ?, ?)",
+                       (client_id, trans_type, amount, details))
+        conn.commit()
+        return redirect(url_for('client_detail', client_id=client_id))
+        
+    cursor.execute("SELECT * FROM clients WHERE id = ?", (client_id,))
+    client = cursor.fetchone()
+    
+    cursor.execute("SELECT * FROM transactions WHERE client_id = ? ORDER BY date DESC", (client_id,))
+    transactions = cursor.fetchall()
+    conn.close()
+    
+    html = BASE_TEMPLATE + '''
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>كشف حساب: {{ client[1] }}</h2>
+        <button onclick="window.print()" class="btn btn-secondary no-print">🖨️ طباعة كشف الحساب / الوصل</button>
+    </div>
+    <p><strong>رقم الهاتف:</strong> {{ client[2] }} | <strong>الرصيد / الدين الحالي:</strong> <span class="badge bg-danger fs-6">{{ client[3] }}</span></p>
+    
+    <div class="card p-3 mb-4 no-print">
+        <h5>إضافة عملية جديدة (فاتورة بيع / سند قبض استلام مبلغ)</h5>
+        <form method="POST" class="row g-2">
+            <div class="col-md-3">
+                <select name="type" class="form-select">
+                    <option value="PAYMENT">سند قبض (استلام مبلغ من الوكيل)</option>
+                    <option value="INVOICE">فاتورة بيع (إضافة دين برادات)</option>
+                </select>
+            </div>
+            <div class="col-md-3"><input type="number" step="0.01" name="amount" class="form-control" placeholder="المبلغ" required></div>
+            <div class="col-md-4"><input type="text" name="details" class="form-control" placeholder="تفاصيل (مثلاً: تسليم 5 برادات / دفعة نقداً)"></div>
+            <div class="col-md-2"><button type="submit" class="btn btn-success w-100">حفظ وحساب</button></div>
+        </form>
+    </div>
 
-        if st.button("🚀 بدء تصنيع الطلبية", type="primary"):
-            if can_produce:
-                for mat, amount_per_unit in recipe.items():
-                    st.session_state.raw_materials[mat]["qty"] -= amount_per_unit * qty_to_build
-                st.session_state.product_models[selected_model]["stock"] += qty_to_build
-                st.balloons()
-                st.success("تم التصنيع بنجاح!")
-                st.rerun()
+    <h4>سجل المعاملات والوصولات:</h4>
+    <table class="table table-striped bg-white">
+        <thead>
+            <tr><th>التاريخ</th><th>نوع المعاملة</th><th>المبلغ</th><th>التفاصيل</th></tr>
+        </thead>
+        <tbody>
+            {% for t in transactions %}
+            <tr>
+                <td>{{ t[4] }}</td>
+                <td>{% if t[2] == 'PAYMENT' %}<span class="badge bg-success">سند قبض (-)</span>{% else %}<span class="badge bg-danger">فاتورة (+)</span{% endif %}</td>
+                <td>{{ t[3] }}</td>
+                <td>{{ t[3] }} - {{ t[3] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    '''
+    return render_template_string(html, client=client, transactions=transactions)
 
-# --- 6. الحسابات والسندات الورقية العامة ---
-elif menu == "الحسابات والسندات":
-    st.title("💰 قسم الحسابات والسندات")
-    st.subheader("📄 نموذج سند قبض ورقي فارغ")
-    st.write("يمكنك طباعة سند فارغ تماماً للتعامل اليدوي المباشر.")
+# 3. إدارة المواد الخام (28 مادة)
+@app.route('/materials', methods=['GET', 'POST'])
+def materials():
+    conn = sqlite3.connect('factory.db')
+    cursor = conn.cursor()
+    
+    if request.method == 'POST':
+        name = request.form['name']
+        qty = request.form['quantity']
+        cost = request.form['unit_cost']
+        cursor.execute("INSERT INTO raw_materials (name, quantity, unit_cost) VALUES (?, ?, ?)", (name, qty, cost))
+        conn.commit()
+        return redirect(url_for('materials'))
+        
+    cursor.execute("SELECT * FROM raw_materials")
+    items = cursor.fetchall()
+    conn.close()
+    
+    html = BASE_TEMPLATE + '''
+    <h3>إدارة مخزن المواد الخام (الـ 28 مادة)</h3>
+    <div class="card p-3 mb-4 no-print">
+        <h5>إضافة مادة خام جديدة (موتور، صاج، نحاس، عازل...)</h5>
+        <form method="POST" class="row g-2">
+            <div class="col-md-5"><input type="text" name="name" class="form-control" placeholder="اسم المادة الخام" required></div>
+            <div class="col-md-3"><input type="number" step="0.1" name="quantity" class="form-control" placeholder="الكمية" required></div>
+            <div class="col-md-2"><input type="number" step="0.01" name="unit_cost" class="form-control" placeholder="تكلفة الوحدة" required></div>
+            <div class="col-md-2"><button type="submit" class="btn btn-primary w-100">إضافة للمخزن</button></div>
+        </form>
+    </div>
+    
+    <table class="table table-bordered bg-white text-center">
+        <thead class="table-dark">
+            <tr><th>#</th><th>المادة</th><th>الكمية المتوفرة</th><th>تكلفة الوحدة</th></tr>
+        </thead>
+        <tbody>
+            {% for i in items %}
+            <tr><td>{{ i[0] }}</td><td>{{ i[1] }}</td><td>{{ i[2] }}</td><td>{{ i[3] }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    '''
+    return render_template_string(html, items=items)
+
+# 4. مخزن البرادات التامة
+@app.route('/inventory', methods=['GET', 'POST'])
+def inventory():
+    conn = sqlite3.connect('factory.db')
+    cursor = conn.cursor()
+    
+    if request.method == 'POST':
+        model_name = request.form['model_name']
+        stock = request.form['stock']
+        cost_price = request.form['cost_price']
+        selling_price = request.form['selling_price']
+        cursor.execute("INSERT INTO finished_coolers (model_name, stock, cost_price, selling_price) VALUES (?, ?, ?, ?)",
+                       (model_name, stock, cost_price, selling_price))
+        conn.commit()
+        return redirect(url_for('inventory'))
+        
+    cursor.execute("SELECT * FROM finished_coolers")
+    coolers = cursor.fetchall()
+    conn.close()
+    
+    html = BASE_TEMPLATE + '''
+    <h3>مخزن المنتج التام (برادات الماء الجاهزة)</h3>
+    <div class="card p-3 mb-4 no-print">
+        <h5>إدخال وجبة برادات مصنعة جاهزة للبيع</h5>
+        <form method="POST" class="row g-2">
+            <div class="col-md-3"><input type="text" name="model_name" class="form-control" placeholder="موديل البراد (مثلاً: براد 3 عيون)" required></div>
+            <div class="col-md-3"><input type="number" name="stock" class="form-control" placeholder="العدد المصنع" required></div>
+            <div class="col-md-3"><input type="number" step="0.01" name="cost_price" class="form-control" placeholder="تكلفة الإنتاج للواحد" required></div>
+            <div class="col-md-3"><input type="number" step="0.01" name="selling_price" class="form-control" placeholder="سعر البيع للوكيل" required></div>
+            <div class="col-md-12 text-end mt-2"><button type="submit" class="btn btn-success">تسجيل بالمخزن</button></div>
+        </form>
+    </div>
+    
+    <table class="table table-bordered bg-white text-center">
+        <thead class="table-dark">
+            <tr><th>#</th><th>الموديل</th><th>المخزون المتوفر</th><th>التكلفة</th><th>سعر البيع</th></tr>
+        </thead>
+        <tbody>
+            {% for c in coolers %}
+            <tr><td>{{ c[0] }}</td><td>{{ c[1] }}</td><td>{{ c[2] }} براد</td><td>{{ c[3] }}</td><td>{{ c[4] }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    '''
+    return render_template_string(html, coolers=coolers)
+
+if __name__ == '__main__':
+    # تشغيل التطبيق في وضع التطوير
+    app.run(debug=True, host='0.0.0.0', port=5000)
