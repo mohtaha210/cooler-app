@@ -180,14 +180,14 @@ def generate_payment_receipt_pdf(
 
     pdf.set_font("Amiri", "", 14)
     pdf.set_text_color(16, 185, 129)
-    pdf.cell(0, 8, ar("وصل استلام وتسديد دفعة مالية"), ln=True, align="C")
+    pdf.cell(0, 8, ar("سند قبض"), ln=True, align="C")
     pdf.ln(6)
 
     pdf.set_font("Amiri", "", 11)
     pdf.set_text_color(51, 65, 85)
     pdf.cell(0, 6, ar(f"رقم الوصل: #{receipt_no}"), ln=True, align="R")
     pdf.cell(0, 6, ar(f"التاريخ والوقت: {date_str}"), ln=True, align="R")
-    pdf.cell(0, 6, ar(f"استلمنا من الوكيل: {agent_name}"), ln=True, align="R")
+    pdf.cell(0, 6, ar(f"من الوكيل: {agent_name}"), ln=True, align="R")
     pdf.cell(0, 6, ar(f"العنوان: {agent_address}"), ln=True, align="R")
     pdf.cell(0, 6, ar(f"العملة: {currency_symbol}"), ln=True, align="R")
     pdf.ln(8)
@@ -196,11 +196,11 @@ def generate_payment_receipt_pdf(
     pdf.set_font("Amiri", "", 12)
 
     pdf.cell(100, 10, f"{paid_amount:,} " + ar(currency_symbol), border=1, align="C")
-    pdf.cell(90, 10, ar("المبلغ الواصل (المسدد):"), border=1, align="R", fill=True)
+    pdf.cell(90, 10, ar("مبلغ وقدره:"), border=1, align="R", fill=True)
     pdf.ln()
 
     pdf.cell(100, 10, ar(notes), border=1, align="C")
-    pdf.cell(90, 10, ar("بيان/طريقة التسديد:"), border=1, align="R", fill=True)
+    pdf.cell(90, 10, ar("استلمت مبلغا من السيد:"), border=1, align="R", fill=True)
     pdf.ln()
 
     pdf.cell(100, 10, f"{prev_balance:,} " + ar(currency_symbol), border=1, align="C")
@@ -212,7 +212,7 @@ def generate_payment_receipt_pdf(
     pdf.cell(90, 12, ar("الرصيد المتبقي ذمة الوكيل:"), border=1, align="R", fill=True)
     pdf.ln(20)
 
-    pdf.cell(0, 6, ar("توقيع المسلم (الوكيل): ..........................         توقيع/ختم المستلم (المعمل): .........................."), ln=True, align="C")
+    pdf.cell(0, 6, ar("         توقيع/ختم المستلم : .........................."), ln=True, align="C")
     return bytes(pdf.output())
 
 # --- 3. إعداد الصفحة والجلسة ---
