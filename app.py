@@ -11,10 +11,11 @@ import streamlit as st
 
 DATA_FILE = "multi_factory_data.json"
 
-# --- 1. إدارة ملف البيانات وتحديث الهيكلية للوكلاء والعملات ---
+# --- 1. إدارة ملف البيانات وتحديث الهيكلية للوكلاء والعملات وسعر الصرف ---
 def get_default_factory_data(factory_name, admin_user, admin_pass):
     return {
         "info": {"factory_name": factory_name},
+        "exchange_rate": 150000.0, # سعر صرف الـ 100 دولار بالدينار العراقي افتراضياً
         "users": {
             admin_user: {
                 "password": admin_pass,
@@ -51,6 +52,8 @@ def load_all_factories():
             with open(DATA_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 for f_name, f_data in data.items():
+                    if "exchange_rate" not in f_data:
+                        f_data["exchange_rate"] = 150000.0
                     if "finished_goods" not in f_data:
                         f_data["finished_goods"] = {model: 0 for model in f_data.get("bom", {}).keys()}
                     if "agents" not in f_data:
@@ -294,13 +297,25 @@ if not st.session_state.authenticated:
 current_factory_name = st.session_state.factory_key
 factory_data = all_factories[current_factory_name]
 
-# الشريط العلوي
+# الشريط العلوي وإدراج سعر الصرف
 st.title(f"❄️ {current_factory_name}")
-col_u1, col_u2 = st.columns([3, 1])
+col_u1, col_u2, col_u3 = st.columns([2, 1.5, 1])
 with col_u1:
     role_badge = "👑 مدير المعمل" if st.session_state.role == "admin" else "👷 موظف"
     st.info(f"المستخدم: **{st.session_state.user_fullname}** | {role_badge}")
+
 with col_u2:
+    current_rate = factory_data.get("exchange_rate", 150000.0)
+    if st.session_state.role == "admin":
+        new_rate = st.number_input("💵 سعر صرف 100$ بالدينار:", value=float(current_rate), step=500.0, key="sys_ex_rate")
+        if new_rate != current_rate:
+            factory_data["exchange_rate"] = new_rate
+            save_all_factories(all_factories)
+            st.toast("✅ تم تحديث سعر الصرف بالنظام!")
+    else:
+        st.metric("سعر صرف 100$", f"{current_rate:,.0f} د.ع")
+
+with col_u3:
     if st.button("🚪 تسجيل الخروج", use_container_width=True):
         st.session_state.authenticated = False
         st.session_state.factory_key = None
@@ -315,6 +330,7 @@ if st.session_state.role == "admin":
         "🤝 إدارة الوكلاء والعناوين",
         "🛒 بيع للوكيل / وصل قبض",
         "💵 تسجيل دفعة مالية من وكيل",
+        "🔄 تحويل بين العملات للوكيل",
         "📊 التقارير الشاملة",
         "🏭 تسجيل إنتاج براد",
         "📦 إدارة المخزون",
@@ -325,12 +341,13 @@ else:
     tabs = st.tabs([
         "🛒 بيع للوكيل / وصل قبض",
         "💵 تسجيل دفعة مالية من وكيل",
+        "🔄 تحويل بين العملات للوكيل",
         "🤝 دليل الوكلاء والعناوين",
         "📦 المخزون الحالي",
     ])
 
 # --- تبويب [1]: إدارة دليل الوكلاء وكشف الحسابات ---
-tab_agents = tabs[0] if st.session_state.role == "admin" else tabs[2]
+tab_agents = tabs[0] if st.session_state.role == "admin" else tabs[3]
 with tab_agents:
     st.header("🤝 دليل الوكلاء (العناوين والديون بالدينار والدولار)")
 
@@ -390,13 +407,20 @@ with tab_agents:
             st.info("لا يوجد وكلاء مسجلون بالنظام حتى الآن.")
         else:
             agents_list = []
+            ex_rate = factory_data.get("exchange_rate", 150000.0)
             for name, info in factory_data["agents"].items():
+                iqd_bal = info.get("balance_iqd", 0.0)
+                usd_bal = info.get("balance_usd", 0.0)
+                # حساب الرصيد التقديري الشامل بالدينار
+                total_in_iqd = iqd_bal + (usd_bal * (ex_rate / 100.0))
+                
                 agents_list.append({
                     "اسم الوكيل": name,
                     "عنوان الوكيل": info.get("address", "-"),
                     "رقم الهاتف": info.get("phone", "-"),
-                    "الديون (بالدينار د.ع)": f"{info.get('balance_iqd', 0):,}",
-                    "الديون (بالدولار $)": f"{info.get('balance_usd', 0):,}",
+                    "الديون (بالدينار د.ع)": f"{iqd_bal:,.0f}",
+                    "الديون (بالدولار $)": f"{usd_bal:,.2f}",
+                    "صافي الدين التقديري (د.ع)": f"{total_in_iqd:,.0f}"
                 })
             st.dataframe(pd.DataFrame(agents_list), use_container_width=True)
 
@@ -411,7 +435,6 @@ with tab_agents:
         if agent_history:
             df_ledger = pd.DataFrame(agent_history)
             
-            # اعادة اعمدة الجدول بأسماء واضحة ومباشرة لمنع أخطاء الـ KeyError
             display_cols = {
                 "date": "التاريخ والوقت",
                 "currency": "العملة",
@@ -421,7 +444,6 @@ with tab_agents:
                 "balance_after": "الرصيد المتبقي بعد الحركة",
             }
             
-            # تصفية الأعمدة الموجودة فقط لتجنب الأخطاء
             available_cols = [col for col in display_cols.keys() if col in df_ledger.columns]
             df_filtered = df_ledger[available_cols].rename(columns=display_cols)
             
@@ -570,7 +592,6 @@ with tab_pay:
             factory_data["receipt_counter"] = receipt_no + 1
             save_all_factories(all_factories)
 
-            # توليد وصل تسديد الدين PDF
             pdf_bytes = generate_payment_receipt_pdf(
                 factory_name=current_factory_name,
                 agent_name=agent_to_pay,
@@ -594,18 +615,89 @@ with tab_pay:
                 use_container_width=True,
             )
 
+# --- تبويب [4]: التحويل بين الدينار والدولار للوكيل ---
+tab_convert = tabs[3] if st.session_state.role == "admin" else tabs[2]
+with tab_convert:
+    st.header("🔄 التحويل والمقاصة بين الدينار العراقي والدولار")
+
+    if not factory_data["agents"]:
+        st.warning("لا يوجد وكلاء مسجلون بالنظام.")
+    else:
+        ex_rate = factory_data.get("exchange_rate", 150000.0)
+        st.info(f"💡 سعر الصرف المعتمد في النظام حالياً: **100$ = {ex_rate:,.0f} دينار عراقي**")
+
+        col_c1, col_c2 = st.columns(2)
+        with col_c1:
+            agent_conv = st.selectbox("اختر الوكيل إجراء التحويل لحسابه:", list(factory_data["agents"].keys()), key="conv_agent_select")
+            ag_iqd = factory_data["agents"][agent_conv].get("balance_iqd", 0.0)
+            ag_usd = factory_data["agents"][agent_conv].get("balance_usd", 0.0)
+
+            st.write(f"📌 دينار عراقي حالي ذمة الوكيل: **{ag_iqd:,.0f} د.ع**")
+            st.write(f"📌 دولار أمريكي حالي ذمة الوكيل: **${ag_usd:,.2f}**")
+
+        with col_c2:
+            conv_direction = st.radio(
+                "اتجاه التحويل/المقاصة:",
+                ["تحويل جزء من الدين من ($USD) إلى (د.ع)", "تحويل جزء من الدين من (د.ع) إلى ($USD)"],
+                key="conv_dir"
+            )
+
+            if "إلى (د.ع)" in conv_direction:
+                amount_usd_to_convert = st.number_input("المبلغ المطلوب تحويله بالدولار ($USD):", min_value=1.0, max_value=float(max(1.0, ag_usd)), value=float(min(100.0, ag_usd)))
+                equivalent_iqd = amount_usd_to_convert * (ex_rate / 100.0)
+                st.success(f"المبلغ المعادل بالدينار العراقي: **{equivalent_iqd:,.0f} د.ع**")
+            else:
+                amount_iqd_to_convert = st.number_input("المبلغ المطلوب تحويله بالدينار (د.ع):", min_value=1000.0, max_value=float(max(1000.0, ag_iqd)), step=50000.0)
+                equivalent_usd = amount_iqd_to_convert / (ex_rate / 100.0)
+                st.success(f"المبلغ المعادل بالدولار الأمريكي: **${equivalent_usd:,.2f}**")
+
+        if st.button("⚡ إجراء التحويل وتحديث الأرصدة", type="primary", use_container_width=True):
+            if "إلى (د.ع)" in conv_direction:
+                factory_data["agents"][agent_conv]["balance_usd"] -= amount_usd_to_convert
+                factory_data["agents"][agent_conv]["balance_iqd"] += equivalent_iqd
+
+                factory_data["agent_ledger"].append({
+                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "agent": agent_conv,
+                    "currency": "تحويل عملة",
+                    "type": "مقاصة عملات",
+                    "amount": 0,
+                    "notes": f"تحويل ${amount_usd_to_convert:,.2f} إلى ({equivalent_iqd:,.0f} د.ع) بسعر {ex_rate:,.0f}",
+                    "balance_after": f"${factory_data['agents'][agent_conv]['balance_usd']:,.2f} | {factory_data['agents'][agent_conv]['balance_iqd']:,.0f} د.ع",
+                })
+            else:
+                factory_data["agents"][agent_conv]["balance_iqd"] -= amount_iqd_to_convert
+                factory_data["agents"][agent_conv]["balance_usd"] += equivalent_usd
+
+                factory_data["agent_ledger"].append({
+                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "agent": agent_conv,
+                    "currency": "تحويل عملة",
+                    "type": "مقاصة عملات",
+                    "amount": 0,
+                    "notes": f"تحويل ({amount_iqd_to_convert:,.0f} د.ع) إلى (${equivalent_usd:,.2f}) بسعر {ex_rate:,.0f}",
+                    "balance_after": f"${factory_data['agents'][agent_conv]['balance_usd']:,.2f} | {factory_data['agents'][agent_conv]['balance_iqd']:,.0f} د.ع",
+                })
+
+            save_all_factories(all_factories)
+            st.success("✅ تم إجراء التحويل وتحديث الأرصدة وكشف الحساب بنجاح!")
+            st.rerun()
+
 # --- التبويبات المتبقية (الإنتاج، المخزون، الحسابات، إلخ...) ---
 if st.session_state.role == "admin":
-    with tabs[3]: # التقارير
+    with tabs[4]: # التقارير
         st.header("📊 التقارير الإحصائية للمعمل")
         tot_iqd = sum([a.get("balance_iqd", 0) for a in factory_data["agents"].values()])
         tot_usd = sum([a.get("balance_usd", 0) for a in factory_data["agents"].values()])
-        
-        c_r1, c_r2 = st.columns(2)
-        c_r1.metric("إجمالي ديون الوكلاء (بالدينار العراقي)", f"{tot_iqd:,} د.ع")
-        c_r2.metric("إجمالي ديون الوكلاء (بالدولار الأمريكي)", f"{tot_usd:,} $")
+        ex_rate = factory_data.get("exchange_rate", 150000.0)
+        grand_total_iqd = tot_iqd + (tot_usd * (ex_rate / 100.0))
 
-    with tabs[4]: # الإنتاج
+        c_r1, c_r2, c_r3 = st.columns(3)
+        c_r1.metric("إجمالي ديون الوكلاء (بالدينار العراقي)", f"{tot_iqd:,.0f} د.ع")
+        c_r2.metric("إجمالي ديون الوكلاء (بالدولار الأمريكي)", f"${tot_usd:,.2f}")
+        c_r3.metric("صافي الديون التقديرية بالدينار", f"{grand_total_iqd:,.0f} د.ع")
+
+    with tabs[5]: # الإنتاج
         st.header("🏭 تسجيل إنتاج براد جديد")
         model_list = list(factory_data["bom"].keys())
         if model_list:
@@ -616,16 +708,16 @@ if st.session_state.role == "admin":
                 save_all_factories(all_factories)
                 st.success("✅ تمت العملية بنجاح!")
 
-    with tabs[5]: # إدارة المخزون
+    with tabs[6]: # إدارة المخزون
         st.header("📦 حالة المخزون")
         fg_df = pd.DataFrame(list(factory_data["finished_goods"].items()), columns=["نوع البراد", "المتوفر بالمخزن"])
         st.dataframe(fg_df, use_container_width=True)
 
-    with tabs[6]: # إدارة الموظفين
+    with tabs[7]: # إدارة الموظفين
         st.header("👥 إدارة الحسابات والموظفين")
         st.write("يمكنك إضافة، تعديل أو حذف حسابات الموظفين من هنا.")
 
-    with tabs[7]: # تصدير Excel
+    with tabs[8]: # تصدير Excel
         st.header("📄 تصدير البيانات إلى Excel")
         if st.button("📥 تصدير كشف الوكلاء والديون والعناوين"):
             df_ag = pd.DataFrame(list(factory_data["agents"].items()))
