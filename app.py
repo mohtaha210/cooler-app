@@ -11,7 +11,7 @@ import streamlit as st
 
 DATA_FILE = "multi_factory_data.json"
 
-# --- 1. إدارة ملف البيانات والتخزين الدائم للنظام المتعدد المعامل ---
+# --- 1. إدارة ملف البيانات والتخزين الدائم للنظام ---
 def get_default_factory_data(factory_name, admin_user, admin_pass):
     return {
         "info": {"factory_name": factory_name},
@@ -187,7 +187,7 @@ def generate_receipt_pdf(
     )
     return bytes(pdf.output())
 
-# --- 3. إعداد الصفحة والجلسة ---
+# --- 3. إعداد الصفحة والجلسة مع حماية Refresh ---
 st.set_page_config(
     page_title="نظام إدارة المخزون والمعامل",
     page_icon="❄️",
@@ -197,12 +197,28 @@ st.set_page_config(
 
 all_factories = load_all_factories()
 
+# استرجاع البيانات المجهزة في الرابط
+query_params = st.query_params
+saved_factory = query_params.get("factory", None)
+saved_user = query_params.get("user", None)
+
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
     st.session_state.factory_key = None
     st.session_state.username = None
     st.session_state.role = None
     st.session_state.user_fullname = ""
+
+# إعادة التسجيل تلقائياً عند Refresh إذا وجدت بيانات بالرابط
+if not st.session_state.authenticated and saved_factory and saved_user:
+    if saved_factory in all_factories:
+        factory_users = all_factories[saved_factory].get("users", {})
+        if saved_user in factory_users:
+            st.session_state.authenticated = True
+            st.session_state.factory_key = saved_factory
+            st.session_state.username = saved_user
+            st.session_state.role = factory_users[saved_user]["role"]
+            st.session_state.user_fullname = factory_users[saved_user]["name"]
 
 # --- 4. شاشة تسجيل الدخول أو إنشاء حساب جديد ---
 if not st.session_state.authenticated:
@@ -235,6 +251,11 @@ if not st.session_state.authenticated:
                     st.session_state.username = username_input
                     st.session_state.role = factory_users[username_input]["role"]
                     st.session_state.user_fullname = factory_users[username_input]["name"]
+
+                    # حفظ الحساب بالرابط لتجنب الخروج عند الـ Refresh
+                    st.query_params["factory"] = selected_factory
+                    st.query_params["user"] = username_input
+
                     st.success("تم تسجيل الدخول بنجاح!")
                     st.rerun()
                 else:
@@ -282,6 +303,7 @@ with col_u2:
     if st.button("🚪 تسجيل الخروج", use_container_width=True):
         st.session_state.authenticated = False
         st.session_state.factory_key = None
+        st.query_params.clear() # تصفير الرابط ليتم تسجيل الخروج فعلياً
         st.rerun()
 
 st.write("---")
@@ -450,7 +472,6 @@ with tab_receipt:
             else:
                 receipt_no = factory_data.get("receipt_counter", 1001)
                 
-                # خصم البرادات المباعة من مخزون البرادات الجاهزة
                 for item in selected_items:
                     factory_data["finished_goods"][item["model"]] -= item["count"]
 
@@ -587,7 +608,6 @@ with tab_inv:
 
 # --- تبويبات الإدارة المتقدمة (للمدير فقط) ---
 if st.session_state.role == "admin":
-    # --- تبويب إدارة الحسابات والموظفين المطور ---
     with tabs[4]:
         st.header("👥 إدارة الحسابات والموظفين")
 
@@ -650,7 +670,6 @@ if st.session_state.role == "admin":
                 elif edit_new_username != selected_user_to_edit and edit_new_username in factory_data["users"]:
                     st.error("اسم المستخدم الجديد مأخوذ بالفعل!")
                 else:
-                    # في حال تغير اسم المستخدم، نقوم بنقل البيانات وحذف القديم
                     factory_data["users"][edit_new_username] = {
                         "password": edit_password,
                         "role": edit_role,
@@ -660,6 +679,7 @@ if st.session_state.role == "admin":
                         del factory_data["users"][selected_user_to_edit]
                         if st.session_state.username == selected_user_to_edit:
                             st.session_state.username = edit_new_username
+                            st.query_params["user"] = edit_new_username
                     
                     save_all_factories(all_factories)
                     st.success("✅ تم تعديل بيانات الحساب بنجاح!")
@@ -685,7 +705,7 @@ if st.session_state.role == "admin":
 
         st.write("---")
 
-        # 4. حذف معمل/مخزن بالكامل (لتنظيف شاشة التسجيل)
+        # 4. حذف معمل/مخزن بالكامل
         st.subheader("🏚️ إدارة المعامل والمخازن المسجلة بالنظام")
         st.write("يمكنك حذف أي معمل أو مخزن زائد بالنظام لتنظيف القائمة في شاشة تسجيل الدخول.")
         
@@ -700,6 +720,7 @@ if st.session_state.role == "admin":
                 if factory_to_delete == current_factory_name:
                     st.session_state.authenticated = False
                     st.session_state.factory_key = None
+                    st.query_params.clear()
                 st.success(f"✅ تم حذف المعمل [{factory_to_delete}] بنجاح!")
                 st.rerun()
 
