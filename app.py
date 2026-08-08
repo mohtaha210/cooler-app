@@ -1,5 +1,4 @@
 from datetime import datetime
-import io
 import json
 import os
 import arabic_reshaper
@@ -11,7 +10,9 @@ import streamlit as st
 
 DATA_FILE = "multi_factory_data.json"
 
-# --- 1. إدارة ملف البيانات وتحديث الهيكلية ---
+# ==========================================
+# 1. إدارة ملف البيانات والقواعد الأساسية
+# ==========================================
 def get_default_factory_data(factory_name, admin_user, admin_pass):
     return {
         "info": {"factory_name": factory_name},
@@ -32,17 +33,15 @@ def get_default_factory_data(factory_name, admin_user, admin_pass):
             "الراديتر": 50.0,
         },
         "finished_goods": {
-            "براد حنفية واحدة": 0,
-            "براد حنفيتين": 0,
+            "براد حنفية واحدة": 10,
+            "براد حنفيتين": 5,
         },
         "bom": {
             "براد حنفية واحدة": {"الحنفية": 1, "البانكة": 1, "الماطور": 1},
             "براد حنفيتين": {"الحنفية": 2, "البانكة": 1, "الماطور": 1},
         },
         "agents": {},
-        "agent_ledger": [],
         "receipt_counter": 1001,
-        "sales_history": [],
         "production_history": [],
     }
 
@@ -58,10 +57,10 @@ def load_all_factories():
                         f_data["finished_goods"] = {model: 0 for model in f_data.get("bom", {}).keys()}
                     if "agents" not in f_data:
                         f_data["agents"] = {}
-                    if "agent_ledger" not in f_data:
-                        f_data["agent_ledger"] = []
                     if "receipt_counter" not in f_data:
                         f_data["receipt_counter"] = 1001
+                    if "production_history" not in f_data:
+                        f_data["production_history"] = []
                     for a_name, a_info in f_data.get("agents", {}).items():
                         if "address" not in a_info:
                             a_info["address"] = "-"
@@ -72,14 +71,15 @@ def load_all_factories():
                 return data
         except Exception:
             return {}
-    else:
-        return {}
+    return {}
 
 def save_all_factories(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# --- 2. دوال الطباعة والـ PDF (سند القبض المحدث نصف A4) ---
+# ==========================================
+# 2. دوال الطباعة وخلق سند القبض (PDF)
+# ==========================================
 def ar(text):
     if not text:
         return ""
@@ -104,19 +104,16 @@ def generate_sanad_qabd_pdf(
     pdf.add_page()
     pdf.add_font("Amiri", "", font_path)
 
-    # إطار خارجي للسند
     pdf.set_draw_color(0, 0, 0)
     pdf.set_linewidth(0.5)
     pdf.rect(6, 6, 198, 136)
 
-    # عنوان المستند
     pdf.set_font("Amiri", "", 22)
     pdf.set_xy(10, 10)
     pdf.cell(190, 10, ar("سند قبض"), align="C")
 
     pdf.set_font("Amiri", "", 11)
 
-    # الجدول الأول
     start_y = 26
     pdf.set_xy(12, start_y)
     pdf.cell(62, 8, ar("العملة"), border=1, align="C")
@@ -128,7 +125,6 @@ def generate_sanad_qabd_pdf(
     pdf.cell(62, 9, str(doc_no), border=1, align="C")
     pdf.cell(62, 9, str(doc_date), border=1, align="C")
 
-    # الجدول الثاني
     start_y_2 = start_y + 23
     pdf.set_xy(12, start_y_2)
     pdf.cell(124, 8, ar("السيد"), border=1, align="C")
@@ -141,7 +137,6 @@ def generate_sanad_qabd_pdf(
     pdf.set_xy(12, start_y_2 + 18)
     pdf.cell(186, 10, ar(f"المبلغ كتابةً: {amount_text}"), border=1, align="R")
 
-    # الجدول الثالث
     start_y_3 = start_y_2 + 35
     pdf.set_xy(12, start_y_3)
     pdf.cell(93, 8, ar("الرصيد بعد التسديد"), border=1, align="C")
@@ -155,7 +150,6 @@ def generate_sanad_qabd_pdf(
         pdf.set_xy(12, start_y_3 + 20)
         pdf.cell(186, 8, ar(f"الملاحظات: {notes}"), border=1, align="R")
 
-    # التوقيعات
     pdf.set_xy(15, start_y_3 + 32)
     pdf.cell(80, 8, ar("توقيع المستلم: ...................."), align="L")
     pdf.set_xy(115, start_y_3 + 32)
@@ -163,12 +157,13 @@ def generate_sanad_qabd_pdf(
 
     return bytes(pdf.output())
 
-# --- 3. إعداد الصفحة والجلسة (نظام تسجيل الدخول) ---
+# ==========================================
+# 3. إعداد الصفحة وتسجيل الدخول
+# ==========================================
 st.set_page_config(
-    page_title="نظام إدارة المخزون والوكلاء",
+    page_title="نظام إدارة المعامل والمخزون",
     page_icon="❄️",
     layout="wide",
-    initial_sidebar_state="collapsed",
 )
 
 all_factories = load_all_factories()
@@ -182,12 +177,12 @@ if "authenticated" not in st.session_state:
 
 if not st.session_state.authenticated:
     st.title("❄️ نظام إدارة وتتبع المعامل والمخزون والوكلاء")
-    login_tab, register_tab = st.tabs(["🔑 تسجيل الدخول لمعمل", "🏭 إنشاء حساب معمل جديد"])
+    login_tab, register_tab = st.tabs(["🔑 تسجيل الدخول", "🏭 إنشاء معمل جديد"])
 
     with login_tab:
         factory_list = list(all_factories.keys())
         if not factory_list:
-            st.info("💡 لا توجد معامل مسجلة بالنظام حالياً.")
+            st.info("💡 لا توجد معامل مسجلة حالياً.")
         else:
             selected_factory = st.selectbox("اختر المعمل:", factory_list)
             username_input = st.text_input("اسم المستخدم:")
@@ -222,13 +217,15 @@ if not st.session_state.authenticated:
 
     st.stop()
 
-# --- 4. تحميل بيانات المعمل والواجهة الرئيسية ---
+# ==========================================
+# 4. الواجهة الرئيسية
+# ==========================================
 current_factory_name = st.session_state.factory_key
 factory_data = all_factories[current_factory_name]
 
-# الشريط العلوي
 st.title(f"❄️ {current_factory_name}")
 col_u1, col_u2, col_u3 = st.columns([2, 1.5, 1])
+
 with col_u1:
     role_badge = "👑 مدير المعمل" if st.session_state.role == "admin" else "👷 موظف"
     st.info(f"المستخدم: **{st.session_state.user_fullname}** | {role_badge}")
@@ -240,6 +237,7 @@ with col_u2:
         if new_rate != current_rate:
             factory_data["exchange_rate"] = new_rate
             save_all_factories(all_factories)
+            st.toast("✅ تم تحديث سعر الصرف!")
     else:
         st.metric("سعر صرف 100$", f"{current_rate:,.0f} د.ع")
 
@@ -251,15 +249,17 @@ with col_u3:
 
 st.write("---")
 
-# --- 5. التبويبات الرئيسية للنظام ---
+# ==========================================
+# 5. التبويبات الشاملة والكاملة
+# ==========================================
 if st.session_state.role == "admin":
     tabs = st.tabs([
         "📝 إصدار سند قبض",
         "🤝 إدارة الوكلاء",
+        "📦 إدارة المخزون",
+        "🏭 تسجيل إنتاج",
         "🔄 تحويل العملات",
         "📊 التقارير",
-        "🏭 تسجيل إنتاج",
-        "📦 المخزون",
     ])
 else:
     tabs = st.tabs([
@@ -268,16 +268,11 @@ else:
         "📦 المخزون الحالي",
     ])
 
-# ==========================================
-# التبويب 1: إصدار سند قبض (الجديد المدمج)
-# ==========================================
-tab_pay = tabs[0]
-with tab_pay:
+# --- التبويب 1: سند القبض ---
+with tabs[0]:
     st.header("📝 إصدار سند قبض (قياس نصف A4)")
-    st.info("💡 يمكنك اختيار وكيل مسجل ليتم سحب رصيده تلقائياً، أو كتابة اسم وكيل جديد يدوياً.")
-
     agent_list = ["-- إدخال يدوي حر --"] + list(factory_data["agents"].keys())
-    selected_agent = st.selectbox("اختر الوكيل (أو اختر إدخال حر):", agent_list)
+    selected_agent = st.selectbox("اختيار الوكيل / طريقة الإدخال:", agent_list)
 
     col_p1, col_p2 = st.columns(2)
 
@@ -287,9 +282,8 @@ with tab_pay:
         doc_date = st.date_input("تاريخ المستند:", value=datetime.now())
         currency_name = st.selectbox("العملة:", ["دولار", "دينار عراقي"])
         
-        # إذا كان الإدخال حر، نظهر حقل نصي، وإلا نستخدم اسم الوكيل المختار
         if selected_agent == "-- إدخال يدوي حر --":
-            agent_name_input = st.text_input("السيد (اسم الزبون):", value="", placeholder="ادخل اسم الشخص...")
+            agent_name_input = st.text_input("السيد (اسم الزبون):", value="", placeholder="ادخل الاسم...")
         else:
             agent_name_input = st.text_input("السيد (اسم الزبون):", value=selected_agent, disabled=True)
 
@@ -297,13 +291,12 @@ with tab_pay:
         amount_num = st.number_input("المبلغ الواصل (رقماً):", value=0.0, step=10.0)
         amount_text = st.text_input("المبلغ (كتابةً):", value="", placeholder="مثال: مئة دولار فقط...")
         
-        # سحب الرصيد السابق تلقائياً إذا كان وكيل مسجل
         if selected_agent != "-- إدخال يدوي حر --":
             if currency_name == "دولار":
-                auto_prev_balance = factory_data["agents"][selected_agent].get("balance_usd", 0.0)
+                auto_prev = factory_data["agents"][selected_agent].get("balance_usd", 0.0)
             else:
-                auto_prev_balance = factory_data["agents"][selected_agent].get("balance_iqd", 0.0)
-            prev_balance = st.number_input("الرصيد السابق:", value=float(auto_prev_balance), step=10.0)
+                auto_prev = factory_data["agents"][selected_agent].get("balance_iqd", 0.0)
+            prev_balance = st.number_input("الرصيد السابق:", value=float(auto_prev), step=10.0)
         else:
             prev_balance = st.number_input("الرصيد السابق:", value=0.0, step=10.0)
 
@@ -312,13 +305,12 @@ with tab_pay:
 
     notes = st.text_input("الملاحظات (اختياري):", value="", placeholder="أي ملاحظات إضافية...")
 
-    if st.button("🖨️ تسجيل وحفظ وطباعة السند (PDF)", type="primary", use_container_width=True):
+    if st.button("🖨️ حفظ وإصدار سند القبض (PDF)", type="primary", use_container_width=True):
         if not agent_name_input.strip():
-            st.error("⚠️ يرجى إدخال اسم السيد / العميل!")
+            st.error("⚠️ يرجى إدخال اسم السيد!")
         elif amount_num <= 0:
             st.error("⚠️ يرجى إدخال مبلغ أكبر من صفر!")
         else:
-            # توليد الـ PDF
             pdf_bytes = generate_sanad_qabd_pdf(
                 doc_no=doc_no,
                 doc_date=doc_date.strftime("%d-%m-%Y"),
@@ -331,32 +323,27 @@ with tab_pay:
                 notes=notes
             )
 
-            # تحديث حساب الوكيل في النظام إذا كان مسجلاً
             if selected_agent != "-- إدخال يدوي حر --":
                 if currency_name == "دولار":
                     factory_data["agents"][selected_agent]["balance_usd"] = new_balance
                 else:
                     factory_data["agents"][selected_agent]["balance_iqd"] = new_balance
 
-            # تحديث العداد
             factory_data["receipt_counter"] = doc_no + 1
             save_all_factories(all_factories)
 
-            st.success(f"✅ تم إصدار سند القبض رقم #{doc_no} وتحديث الحسابات بنجاح!")
+            st.success(f"✅ تم إصدار سند القبض رقم #{doc_no} بنجاح!")
             st.download_button(
-                label=f"📥 تنزيل سند القبض (PDF)",
+                label=f"📥 تنزيل سند القبض رقم #{doc_no} (PDF)",
                 data=pdf_bytes,
                 file_name=f"سند_قبض_{doc_no}.pdf",
                 mime="application/pdf",
                 use_container_width=True
             )
 
-# ==========================================
-# التبويب 2: إدارة الوكلاء
-# ==========================================
-tab_agents = tabs[1]
-with tab_agents:
-    st.header("🤝 إدارة الوكلاء (الديون بالدينار والدولار)")
+# --- التبويب 2: إدارة الوكلاء ---
+with tabs[1]:
+    st.header("🤝 دليل وإدارة الوكلاء والأرصدة")
     col_ag1, col_ag2 = st.columns([1, 2])
 
     if st.session_state.role == "admin":
@@ -364,44 +351,201 @@ with tab_agents:
             st.subheader("➕ إضافة وكيل جديد")
             new_agent_name = st.text_input("اسم الوكيل / المحل:")
             new_agent_address = st.text_input("عنوان الوكيل:")
-            init_iqd = st.number_input("الرصيد الافتتاحي (دينار د.ع):", value=0.0, step=50000.0)
-            init_usd = st.number_input("الرصيد الافتتاحي (دولار $):", value=0.0, step=100.0)
+            new_agent_phone = st.text_input("رقم الهاتف:")
+            init_iqd = st.number_input("الديون السابقة (بالدينار د.ع):", value=0.0, step=50000.0)
+            init_usd = st.number_input("الديون السابقة (بالدولار $):", value=0.0, step=100.0)
 
-            if st.button("➕ تسجيل الوكيل بالنظام", type="primary", use_container_width=True):
+            if st.button("➕ إضافة الوكيل", type="primary", use_container_width=True):
                 if not new_agent_name.strip():
                     st.error("يرجى إدخال اسم الوكيل!")
                 elif new_agent_name in factory_data["agents"]:
-                    st.error("اسم هذا الوكيل موجود بالفعل!")
+                    st.error("اسم الوكيل موجود بالفعل!")
                 else:
                     factory_data["agents"][new_agent_name] = {
+                        "phone": new_agent_phone,
                         "address": new_agent_address if new_agent_address.strip() else "-",
                         "balance_iqd": init_iqd,
                         "balance_usd": init_usd,
                     }
                     save_all_factories(all_factories)
-                    st.success("✅ تم إضافة الوكيل بنجاح!")
+                    st.success(f"✅ تم إضافة الوكيل [{new_agent_name}] بنجاح!")
                     st.rerun()
 
     with col_ag2:
-        st.subheader("📋 قائمة الوكلاء والأرصدة")
+        st.subheader("📋 قائمة الوكلاء")
         if not factory_data["agents"]:
-            st.info("لا يوجد وكلاء مسجلون بالنظام حتى الآن.")
+            st.info("لا يوجد وكلاء مسجلون حالياً.")
         else:
             agents_list = []
+            ex_rate = factory_data.get("exchange_rate", 150000.0)
             for name, info in factory_data["agents"].items():
+                iqd_bal = info.get("balance_iqd", 0.0)
+                usd_bal = info.get("balance_usd", 0.0)
+                total_in_iqd = iqd_bal + (usd_bal * (ex_rate / 100.0))
                 agents_list.append({
                     "اسم الوكيل": name,
-                    "عنوان الوكيل": info.get("address", "-"),
-                    "الديون (بالدينار د.ع)": f"{info.get('balance_iqd', 0.0):,.0f}",
-                    "الديون (بالدولار $)": f"{info.get('balance_usd', 0.0):,.2f}",
+                    "العنوان": info.get("address", "-"),
+                    "الهاتف": info.get("phone", "-"),
+                    "الديون (دينار د.ع)": f"{iqd_bal:,.0f}",
+                    "الديون (دولار $)": f"{usd_bal:,.2f}",
+                    "الإجمالي المقدر (د.ع)": f"{total_in_iqd:,.0f}"
                 })
             st.dataframe(pd.DataFrame(agents_list), use_container_width=True)
 
-# باقي التبويبات (متروكة كعناوين لتضيف فيها المنطق الخاص بك كما كان)
+# --- التبويب 3: إدارة المخزون (كامل ومفصّل) ---
+with tabs[2]:
+    st.header("📦 إدارة المخزون المواد الأولية والمنتجات الجاهزة")
+    
+    col_inv1, col_inv2 = st.columns(2)
+    with col_inv1:
+        st.subheader("🧩 المواد الأولية (قطع الغيار)")
+        raw_df = pd.DataFrame([{"المادة": k, "الكمية المتاحة": v} for k, v in factory_data.get("inventory", {}).items()])
+        st.dataframe(raw_df, use_container_width=True)
+
+    with col_inv2:
+        st.subheader("📦 المنتجات الجاهزة (البرادات)")
+        fg_df = pd.DataFrame([{"المنتج": k, "الكمية المتوفرة": v} for k, v in factory_data.get("finished_goods", {}).items()])
+        st.dataframe(fg_df, use_container_width=True)
+
+    if st.session_state.role == "admin":
+        st.write("---")
+        st.subheader("🛠️ التعديل والإضافة المباشرة للمخزون")
+        
+        tab_add_item, tab_new_item = st.tabs(["تعديل كمية متوفرة", "إضافة مادة جديدة كلياً"])
+        
+        with tab_add_item:
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                item_type = st.radio("نوع المادة:", ["مواد أولية", "منتج جاهز"])
+            with c2:
+                if item_type == "مواد أولية":
+                    selected_item = st.selectbox("اختر المادة:", list(factory_data.get("inventory", {}).keys()))
+                else:
+                    selected_item = st.selectbox("اختر المنتج:", list(factory_data.get("finished_goods", {}).keys()))
+            with c3:
+                added_qty = st.number_input("الكمية المضافة (استخدم السالب للخصم):", value=10.0)
+
+            if st.button("تحديث المخزن", type="primary"):
+                if item_type == "مواد أولية":
+                    factory_data["inventory"][selected_item] += added_qty
+                else:
+                    factory_data["finished_goods"][selected_item] += int(added_qty)
+                save_all_factories(all_factories)
+                st.success("✅ تم تحديث الكمية بنجاح!")
+                st.rerun()
+
+        with tab_new_item:
+            c1, c2 = st.columns(2)
+            with c1:
+                new_raw_name = st.text_input("اسم المادة الأولية الجديدة:")
+            with c2:
+                init_qty = st.number_input("الكمية الأولية:", value=0.0)
+            
+            if st.button("إضافة للمواد الأولية"):
+                if new_raw_name and new_raw_name not in factory_data["inventory"]:
+                    factory_data["inventory"][new_raw_name] = init_qty
+                    save_all_factories(all_factories)
+                    st.success(f"✅ تم إضافة {new_raw_name} إلى المخزن!")
+                    st.rerun()
+
+# --- التبويب 4: تسجيل إنتاج ---
 if st.session_state.role == "admin":
-    with tabs[2]: st.header("🔄 تحويل العملات")
-    with tabs[3]: st.header("📊 التقارير الشاملة")
-    with tabs[4]: st.header("🏭 تسجيل الإنتاج")
-    with tabs[5]: st.header("📦 إدارة المخزون")
-else:
-    with tabs[2]: st.header("📦 المخزون الحالي")
+    with tabs[3]:
+        st.header("🏭 تسجيل إنتاج برادات جديدة")
+        st.info("💡 عند تسجيل الإنتاج، سيتم خصم قطع الغيار تلقائياً من المواد الأولية وإضافتها للمنتجات الجاهزة.")
+
+        col_p1, col_p2 = st.columns(2)
+        with col_p1:
+            product_model = st.selectbox("اختر موديل البراد:", list(factory_data.get("bom", {}).keys()))
+            prod_qty = st.number_input("الكمية المصنعة:", value=1, min_value=1)
+        
+        with col_p2:
+            st.subheader("📋 الاحتياجات المطلوبة (BOM):")
+            req_bom = factory_data.get("bom", {}).get(product_model, {})
+            has_enough = True
+            for part, qty_per_unit in req_bom.items():
+                total_needed = qty_per_unit * prod_qty
+                avail = factory_data.get("inventory", {}).get(part, 0)
+                status = "✅ متوفر" if avail >= total_needed else "❌ نقص"
+                if avail < total_needed:
+                    has_enough = False
+                st.write(f"- **{part}**: مطلوب ({total_needed}) | المتوفر ({avail}) <- {status}")
+
+        if st.button("🚀 تأكيد تصنيع الوجبة", type="primary", use_container_width=True):
+            if not has_enough:
+                st.error("⚠️ لا يمكن إتمام العملية بسبب نقص القطع في المخزن!")
+            else:
+                # خصم القطع
+                for part, qty_per_unit in req_bom.items():
+                    factory_data["inventory"][part] -= (qty_per_unit * prod_qty)
+                # زيادة المنتجات الجاهزة
+                factory_data["finished_goods"][product_model] += prod_qty
+                # سجل الإنتاج
+                factory_data["production_history"].append({
+                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "model": product_model,
+                    "qty": prod_qty,
+                    "user": st.session_state.user_fullname
+                })
+                save_all_factories(all_factories)
+                st.success(f"🎉 تم إنتاج {prod_qty} من ({product_model}) وخصم القطع بنجاح!")
+                st.rerun()
+
+    # --- التبويب 5: تحويل العملات ---
+    with tabs[4]:
+        st.header("🔄 تحويل ديون الوكلاء بين الدينار والدولار")
+        ag_select = st.selectbox("اختر الوكيل للتحويل:", list(factory_data["agents"].keys()))
+        
+        if ag_select:
+            ag_info = factory_data["agents"][ag_select]
+            col_t1, col_t2 = st.columns(2)
+            with col_t1:
+                st.metric("رصيد الدينار الحالي", f"{ag_info.get('balance_iqd', 0):,.0f} د.ع")
+            with col_t2:
+                st.metric("رصيد الدولار الحالي", f"{ag_info.get('balance_usd', 0):,.2f} $")
+
+            st.write("---")
+            col_x1, col_x2 = st.columns(2)
+            with col_x1:
+                trans_type = st.radio("نوع التحويل:", ["تحويل من دينار إلى دولار", "تحويل من دولار إلى دينار"])
+                trans_amount = st.number_input("المبلغ المراد تحويله:", value=100.0, step=10.0)
+            
+            ex_rate = factory_data.get("exchange_rate", 150000.0)
+
+            if st.button("تأكيد تحويل العملة", type="primary"):
+                if trans_type == "تحويل من دينار إلى دولار":
+                    # خصم دينار وزيادة دولار
+                    usd_val = trans_amount / (ex_rate / 100.0)
+                    ag_info["balance_iqd"] -= trans_amount
+                    ag_info["balance_usd"] += usd_val
+                else:
+                    # خصم دولار وزيادة دينار
+                    iqd_val = trans_amount * (ex_rate / 100.0)
+                    ag_info["balance_usd"] -= trans_amount
+                    ag_info["balance_iqd"] += iqd_val
+                
+                save_all_factories(all_factories)
+                st.success("✅ تم تحويل المبالغ وتحديث حساب الوكيل بنجاح!")
+                st.rerun()
+
+    # --- التبويب 6: التقارير ---
+    with tabs[5]:
+        st.header("📊 التقارير السريعة وإحصائيات المعمل")
+        
+        col_r1, col_r2, col_r3 = st.columns(3)
+        total_iqd = sum(a.get("balance_iqd", 0) for a in factory_data["agents"].values())
+        total_usd = sum(a.get("balance_usd", 0) for a in factory_data["agents"].values())
+        
+        with col_r1:
+            st.metric("إجمالي الديون بالدينار", f"{total_iqd:,.0f} د.ع")
+        with col_r2:
+            st.metric("إجمالي الديون بالدولار", f"{total_usd:,.2f} $")
+        with col_r3:
+            st.metric("آخر رقم مستند وصل", f"#{factory_data.get('receipt_counter', 1001)-1}")
+
+        st.write("---")
+        st.subheader("📜 سجل عمليات الإنتاج الأخيرة")
+        if factory_data.get("production_history"):
+            st.dataframe(pd.DataFrame(factory_data["production_history"]), use_container_width=True)
+        else:
+            st.info("لا توجد عمليات إنتاج مسجلة حتى الآن.")
