@@ -1,12 +1,20 @@
 import os
 import requests
 import streamlit as st
+import pandas as pd
 from fpdf import FPDF
 import arabic_reshaper
 from bidi.algorithm import get_display
 
 # --- إعدادات الصفحة والنظام ---
 st.set_page_config(page_title="نظام إدارة المعمل المتكامل", layout="wide")
+
+# --- تهيئة ذاكرة المخزون (Session State) ---
+if "inventory" not in st.session_state:
+    st.session_state.inventory = [
+        {"اسم المنتج / المادة": "مادة خام A", "الكمية": 100, "سعر الوحدة ($)": 15.0, "إجمالي القيمة ($)": 1500.0},
+        {"اسم المنتج / المادة": "منتج نهائي B", "الكمية": 50, "سعر الوحدة ($)": 40.0, "إجمالي القيمة ($)": 2000.0}
+    ]
 
 # --- دالة معالجة النصوص العربية ---
 def ar(text):
@@ -25,11 +33,9 @@ def ensure_arabic_font():
             f.write(response.content)
     return font_path
 
-# --- دالة إنشاء سند القبض (فارغ طبق الأصل 100% بدون مدخلات) ---
+# --- دالة إنشاء سند القبض (فارغ طبق الأصل 100%) ---
 def generate_blank_sanad_qabd_pdf():
     font_path = ensure_arabic_font()
-    
-    # قياس A5 Landscape (أفقي) بنفس مقاس الورقة الأصلية
     pdf = FPDF(orientation='L', unit='mm', format='A5')
     pdf.add_page()
     pdf.add_font("Amiri", "", font_path)
@@ -41,48 +47,47 @@ def generate_blank_sanad_qabd_pdf():
 
     pdf.set_font("Amiri", "", 12)
 
-    # --- الجدول الرئيسي ---
     # الصف الأول: رقم المستند (يمين) | العملة (يسار)
     y1 = 28
     pdf.set_xy(105, y1)
-    pdf.cell(65, 11, "", border=1) # فارغ
+    pdf.cell(65, 11, "", border=1)
     pdf.cell(30, 11, ar("رقم المستند"), border=1, align="C")
     
     pdf.set_xy(10, y1)
-    pdf.cell(65, 11, "", border=1) # فارغ
+    pdf.cell(65, 11, "", border=1)
     pdf.cell(30, 11, ar("العملة"), border=1, align="C")
 
     # الصف الثاني: تاريخ المستند (يمين) | السيد (يسار)
     y2 = y1 + 11
     pdf.set_xy(105, y2)
-    pdf.cell(65, 11, "", border=1) # فارغ
+    pdf.cell(65, 11, "", border=1)
     pdf.cell(30, 11, ar("تاريخ المستند"), border=1, align="C")
     
     pdf.set_xy(10, y2)
-    pdf.cell(65, 11, "", border=1) # فارغ
+    pdf.cell(65, 11, "", border=1)
     pdf.cell(30, 11, ar("السيد"), border=1, align="C")
 
     # الصف الثالث: المبلغ رقماً + المبلغ كتابةً
     y3 = y2 + 11
     pdf.set_xy(10, y3)
-    pdf.cell(95, 11, "", border=1) # مساحة كتابة المبلغ تفقيطاً
-    pdf.cell(65, 11, "", border=1) # مساحة المبلغ رقماً
+    pdf.cell(95, 11, "", border=1)
+    pdf.cell(65, 11, "", border=1)
     pdf.cell(30, 11, ar("المبلغ"), border=1, align="C")
 
     # الصف الرابع: الملاحظات
     y4 = y3 + 11
     pdf.set_xy(10, y4)
-    pdf.cell(160, 12, "", border=1) # فارغ للملاحظات
+    pdf.cell(160, 12, "", border=1)
     pdf.cell(30, 12, ar("الملاحظات"), border=1, align="C")
 
-    # --- جدول الأرصدة السفلي (على اليمين) ---
+    # جدول الأرصدة السفلي
     y5 = y4 + 14
     pdf.set_xy(105, y5)
-    pdf.cell(65, 10, "", border=1) # فارغ للرصيد السابق
+    pdf.cell(65, 10, "", border=1)
     pdf.cell(30, 10, ar("الرصيد السابق"), border=1, align="C")
 
     pdf.set_xy(105, y5 + 10)
-    pdf.cell(65, 10, "", border=1) # فارغ للرصيد بعد التسديد
+    pdf.cell(65, 10, "", border=1)
     pdf.cell(30, 10, ar("الرصيد بعد التسديد"), border=1, align="C")
 
     pdf_out = pdf.output()
@@ -95,11 +100,10 @@ def generate_blank_sanad_qabd_pdf():
 #      واجهة نظام إدارة المعمل المتكامل
 # ==========================================
 
-# الشريط الجانبي للتنقل بين أقسام المعمل
 st.sidebar.title("🏭 نظام إدارة المعمل")
 menu = st.sidebar.radio(
     "القائمة الرئيسية:",
-    ["الرئيسية (لوحة التحكم)", "إدارة الإنتاج والطلبيات", "الحسابات والسندات", "المخزن والمواد الخام"]
+    ["الرئيسية (لوحة التحكم)", "إدارة المخزن والمواد الخام", "الحسابات والسندات", "إدارة الإنتاج والطلبيات"]
 )
 
 # --- 1. قسم الرئيسية ---
@@ -107,25 +111,83 @@ if menu == "الرئيسية (لوحة التحكم)":
     st.title("📊 لوحة تحكم المعمل")
     st.write("مرحباً بك في نظام إدارة المعمل. يمكنك متابعة العمليات والحسابات من هنا.")
     
+    total_items = sum(item["الكمية"] for item in st.session_state.inventory)
+    total_val = sum(item["إجمالي القيمة ($)"] for item in st.session_state.inventory)
+    
     col1, col2, col3 = st.columns(3)
-    col1.metric("إجمالي الإنتاج اليومي", "1,250 وحدة")
-    col2.metric("إجمالي المبيعات", "$4,300")
-    col3.metric("الطلبيات المعلقة", "5 طلبيات")
+    col1.metric("إجمالي القطع بالمخزن", f"{total_items:,}")
+    col2.metric("قيمة المخزون الكلية", f"${total_val:,.2f}")
+    col3.metric("الأنواع المسجلة", len(st.session_state.inventory))
 
-# --- 2. قسم الإنتاج ---
-elif menu == "إدارة الإنتاج والطلبيات":
-    st.title("📦 إدارة الإنتاج والطلبيات")
-    st.subheader("سجل الطلبيات الحالية")
-    st.info("هنا يتم عرض وتحديث خطوط الإنتاج والطلبيات الخاصة بالعملاء.")
+# --- 2. قسم المخزن المتكامل (إضافة / عرض / حذف) ---
+elif menu == "إدارة المخزن والمواد الخام":
+    st.title("🏗️ إدارة المخزن والمواد الخام")
+    st.write("يمكنك إضافة عناصر جديدة إلى المخزون أو التعديل والحذف مباشرة.")
 
-# --- 3. قسم الحسابات والسندات (وفيه طباعة السند الفارغ) ---
+    # ➕ نموذج إضافة عنصر جديد للمخزن
+    with st.expander("➕ إضافة منتج / مادة خام جديدة للمخزن", expanded=True):
+        with st.form("add_inventory_form", clear_on_submit=True):
+            col_a, col_b, col_c = st.columns(3)
+            with col_a:
+                item_name = st.text_input("اسم المنتج / المادة")
+            with col_b:
+                item_qty = st.number_input("الكمية", min_value=1, value=10, step=1)
+            with col_c:
+                item_price = st.number_input("سعر الوحدة ($)", min_value=0.0, value=5.0, step=0.5)
+            
+            submit_btn = st.form_submit_button("حفظ وإضافة للمخزن")
+            
+            if submit_btn:
+                if item_name.strip() != "":
+                    total_p = item_qty * item_price
+                    st.session_state.inventory.append({
+                        "اسم المنتج / المادة": item_name,
+                        "الكمية": item_qty,
+                        "سعر الوحدة ($)": item_price,
+                        "إجمالي القيمة ($)": total_p
+                    })
+                    st.success(f"تمت إضافة ({item_name}) بنجاح إلى المخزن!")
+                else:
+                    st.error("يرجى إدخال اسم المنتج أولاً.")
+
+    st.divider()
+
+    # 📋 عرض جدول المخزون الحالي
+    st.subheader("📋 جدول المخزون الحالي")
+    if len(st.session_state.inventory) > 0:
+        df = pd.DataFrame(st.session_state.inventory)
+        st.dataframe(df, use_container_width=True)
+        
+        # حاسبة إجماليات المخزن
+        tot_qty = sum(item["الكمية"] for item in st.session_state.inventory)
+        tot_val = sum(item["إجمالي القيمة ($)"] for item in st.session_state.inventory)
+        
+        col_m1, col_m2 = st.columns(2)
+        col_m1.info(f"📦 مجموع الكميات بالمخزن: **{tot_qty:,}** قطعة")
+        col_m2.success(f"💰 إجمالي قيمة المخزون: **${tot_val:,.2f}**")
+
+        # 🗑️ خيار حذف عنصر من المخزن
+        st.subheader("🗑️ إدارة / حذف عنصر من المخزن")
+        item_to_delete = st.selectbox(
+            "اختر المنتج المراد حذفه:",
+            options=[item["اسم المنتج / المادة"] for item in st.session_state.inventory]
+        )
+        if st.button("حذف المنتج المحدد", type="primary"):
+            st.session_state.inventory = [
+                item for item in st.session_state.inventory if item["اسم المنتج / المادة"] != item_to_delete
+            ]
+            st.success(f"تم حذف {item_to_delete} بنجاح.")
+            st.rerun()
+    else:
+        st.warning("المخزن فارغ حالياً. قم بإضافة عناصر جديدة أعلاه.")
+
+# --- 3. قسم الحسابات والسندات ---
 elif menu == "الحسابات والسندات":
     st.title("💰 قسم الحسابات والسندات المالية")
     
     st.subheader("📄 طباعة نماذج السندات الورقية")
     st.write("اضغط على الزر أدناه لتحميل أو طباعة **سند قبض فارغ** جاهز للطباعة يدوياً وبنفس مقاسات وتقسيمات الورق الرسمي للمعمل:")
     
-    # زر تحميل السند الفارغ فوراً
     blank_pdf = generate_blank_sanad_qabd_pdf()
     st.download_button(
         label="🖨️ تحميل / طباعة سند قبض فارغ (PDF)",
@@ -135,7 +197,8 @@ elif menu == "الحسابات والسندات":
         type="primary"
     )
 
-# --- 4. قسم المخزن ---
-elif menu == "المخزن والمواد الخام":
-    st.title("🏗️ إدارة المخزن والمواد الخام")
-    st.write("متابعة حركة المخزون والمواد الأولية للمعمل.")
+# --- 4. قسم الإنتاج ---
+elif menu == "إدارة الإنتاج والطلبيات":
+    st.title("📦 إدارة الإنتاج والطلبيات")
+    st.subheader("سجل الطلبيات الحالية")
+    st.info("هنا يتم عرض وتحديث خطوط الإنتاج والطلبيات الخاصة بالعملاء.")
