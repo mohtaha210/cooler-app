@@ -203,7 +203,7 @@ def generate_payment_receipt_pdf(
     pdf.ln()
 
     pdf.cell(100, 10, f"{prev_balance:,} " + ar(currency_symbol), border=1, align="C")
-    pdf.cell(90, 10, ar("الدين السكلي السابق:"), border=1, align="R", fill=True)
+    pdf.cell(90, 10, ar("الدين الكلي السابق:"), border=1, align="R", fill=True)
     pdf.ln()
 
     pdf.set_fill_color(226, 232, 240)
@@ -410,15 +410,22 @@ with tab_agents:
         ]
         if agent_history:
             df_ledger = pd.DataFrame(agent_history)
-            df_ledger.rename(columns={
+            
+            # اعادة اعمدة الجدول بأسماء واضحة ومباشرة لمنع أخطاء الـ KeyError
+            display_cols = {
                 "date": "التاريخ والوقت",
                 "currency": "العملة",
                 "type": "نوع الحركة",
                 "amount": "المبلغ",
                 "notes": "التفاصيل / البيان",
                 "balance_after": "الرصيد المتبقي بعد الحركة",
-            }, inplace=True)
-            st.dataframe(df_ledger[["التاريخ والوقت", "العملة", "نوع الحركة", "المبلغ", "التفاصيل / البيان", "الرصيد المتبقي بعد الحركة"]], use_container_width=True)
+            }
+            
+            # تصفية الأعمدة الموجودة فقط لتجنب الأخطاء
+            available_cols = [col for col in display_cols.keys() if col in df_ledger.columns]
+            df_filtered = df_ledger[available_cols].rename(columns=display_cols)
+            
+            st.dataframe(df_filtered, use_container_width=True)
         else:
             st.info("لا توجد حركات مالية مسجلة لهذا الوكيل بعد.")
 
