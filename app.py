@@ -78,7 +78,7 @@ def save_all_factories(data):
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 # ==========================================
-# 2. دوال الطباعة وخلق سند القبض (PDF مُصححة)
+# 2. دوال الطباعة وخلق سند القبض (التصميم العمودي الجديد)
 # ==========================================
 def ar(text):
     if not text:
@@ -100,70 +100,74 @@ def generate_sanad_qabd_pdf(
     amount_num, amount_text, prev_balance, new_balance, notes=""
 ):
     font_path = ensure_arabic_font()
-    pdf = FPDF(orientation='L', unit='mm', format='A5')
+    # استخدام الاتجاه العمودي Portrait (P) بقياس A5 مطابق للوصل المصور
+    pdf = FPDF(orientation='P', unit='mm', format='A5')
     pdf.add_page()
     pdf.add_font("Amiri", "", font_path)
 
-    # إطار أسرع وأوضح
+    # إطار خارجي كامل للصفحة
     pdf.set_draw_color(0, 0, 0)
     pdf.set_line_width(0.5)
-    pdf.rect(6, 6, 198, 136)
+    pdf.rect(8, 8, 132, 194)
 
-    # عنوان المستند
-    pdf.set_font("Amiri", "", 22)
-    pdf.set_xy(10, 10)
-    pdf.cell(190, 10, ar("سند قبض"), align="C")
+    # عنوان سند القبض
+    pdf.set_font("Amiri", "", 20)
+    pdf.set_xy(10, 15)
+    pdf.cell(128, 10, ar("سند قبض"), align="C")
 
-    pdf.set_font("Amiri", "", 11)
+    pdf.set_font("Amiri", "", 10)
 
-    # الجدول الأول: العملة، رقم المستند، التاريخ
-    start_y = 26
-    pdf.set_xy(12, start_y)
-    pdf.cell(62, 8, ar("العملة"), border=1, align="C")
-    pdf.cell(62, 8, ar("رقم المستند"), border=1, align="C")
-    pdf.cell(62, 8, ar("تاريخ المستند"), border=1, align="C")
+    # --- الجدول الأول (رقم المستند / تاريخ المستند) ---
+    y = 30
+    pdf.set_xy(12, y)
+    pdf.cell(62, 7, ar("رقم المستند"), border=1, align="C")
+    pdf.cell(62, 7, ar("تاريخ المستند"), border=1, align="C")
     
-    pdf.set_xy(12, start_y + 8)
-    pdf.cell(62, 9, ar(currency_name), border=1, align="C")
-    pdf.cell(62, 9, str(doc_no), border=1, align="C")
-    pdf.cell(62, 9, str(doc_date), border=1, align="C")
+    pdf.set_xy(12, y + 7)
+    pdf.cell(62, 8, str(doc_no), border=1, align="C")
+    pdf.cell(62, 8, str(doc_date), border=1, align="C")
 
-    # الجدول الثاني: السيد والمبلغ
-    start_y_2 = start_y + 23
-    pdf.set_xy(12, start_y_2)
-    pdf.cell(124, 8, ar("السيد"), border=1, align="C")
-    pdf.cell(62, 8, ar("المبلغ"), border=1, align="C")
+    # --- الجدول الثاني (العملة / السيد) ---
+    y_2 = y + 17
+    pdf.set_xy(12, y_2)
+    pdf.cell(30, 7, ar("العملة"), border=1, align="C")
+    pdf.cell(94, 7, ar("السيّد"), border=1, align="C")
 
-    pdf.set_xy(12, start_y_2 + 8)
-    pdf.cell(124, 10, ar(agent_name), border=1, align="C")
-    pdf.cell(62, 10, f"{amount_num:,.2f}", border=1, align="C")
+    pdf.set_xy(12, y_2 + 7)
+    pdf.cell(30, 9, ar(currency_name), border=1, align="C")
+    pdf.cell(94, 9, ar(agent_name), border=1, align="C")
 
-    # المبلغ كتابةً
-    pdf.set_xy(12, start_y_2 + 18)
-    pdf.cell(186, 10, ar(f"المبلغ كتابةً: {amount_text}"), border=1, align="R")
+    # --- الجدول الثالث (المبلغ والتفقيط) ---
+    y_3 = y_2 + 18
+    pdf.set_xy(12, y_3)
+    pdf.cell(94, 9, ar(amount_text), border=1, align="C")
+    pdf.cell(30, 9, f"{amount_num:,.2f}", border=1, align="C")
+    
+    pdf.set_xy(106, y_3)
+    pdf.cell(18, 9, ar("المبلغ"), border=0, align="C")
 
-    # الجدول الثالث: الرصيد
-    start_y_3 = start_y_2 + 35
-    pdf.set_xy(12, start_y_3)
-    pdf.cell(93, 8, ar("الرصيد بعد التسديد"), border=1, align="C")
-    pdf.cell(93, 8, ar("الرصيد السابق"), border=1, align="C")
+    # --- الملاحظات ---
+    y_4 = y_3 + 12
+    pdf.set_xy(12, y_4)
+    pdf.cell(124, 10, ar(f"الملاحظات: {notes}"), border=1, align="R")
 
-    pdf.set_xy(12, start_y_3 + 8)
-    pdf.cell(93, 10, f"{new_balance:,.2f}", border=1, align="C")
-    pdf.cell(93, 10, f"{prev_balance:,.2f}", border=1, align="C")
+    # --- الرصيد السابق والرصيد بعد التسديد ---
+    y_5 = y_4 + 14
+    pdf.set_xy(12, y_5)
+    pdf.cell(62, 7, ar("الرصيد بعد التسديد"), border=1, align="C")
+    pdf.cell(62, 7, ar("الرصيد السابق"), border=1, align="C")
 
-    # الملاحظات
-    if notes:
-        pdf.set_xy(12, start_y_3 + 20)
-        pdf.cell(186, 8, ar(f"الملاحظات: {notes}"), border=1, align="R")
+    pdf.set_xy(12, y_5 + 7)
+    pdf.cell(62, 8, f"{new_balance:,.2f}", border=1, align="C")
+    pdf.cell(62, 8, f"{prev_balance:,.2f}", border=1, align="C")
 
-    # التوقيعات
-    pdf.set_xy(15, start_y_3 + 32)
-    pdf.cell(80, 8, ar("توقيع المستلم: ...................."), align="L")
-    pdf.set_xy(115, start_y_3 + 32)
-    pdf.cell(80, 8, ar("توقيع المسلّم: ...................."), align="R")
+    # --- التوقيعات ---
+    y_6 = y_5 + 25
+    pdf.set_xy(15, y_6)
+    pdf.cell(50, 8, ar("توقيع المستلم: ...................."), align="L")
+    pdf.set_xy(75, y_6)
+    pdf.cell(50, 8, ar("توقيع المسلّم: ...................."), align="R")
 
-    # تصحيح طريقة الإخراج لتكون متوافقة مع جميع إصدارات fpdf
     pdf_out = pdf.output()
     if isinstance(pdf_out, str):
         return pdf_out.encode('latin1')
@@ -282,7 +286,7 @@ else:
 
 # --- التبويب 1: سند القبض ---
 with tabs[0]:
-    st.header("📝 إصدار سند قبض (قياس نصف A4)")
+    st.header("📝 إصدار سند قبض")
     agent_list = ["-- إدخال يدوي حر --"] + list(factory_data["agents"].keys())
     selected_agent = st.selectbox("اختيار الوكيل / طريقة الإدخال:", agent_list)
 
@@ -301,7 +305,7 @@ with tabs[0]:
 
     with col_p2:
         amount_num = st.number_input("المبلغ الواصل (رقماً):", value=0.0, step=10.0)
-        amount_text = st.text_input("المبلغ (كتابةً):", value="", placeholder="مثال: مئة دولار فقط...")
+        amount_text = st.text_input("المبلغ (كتابةً):", value="", placeholder="مثال: مئة وثلاثة وأربعون دولار لا غير...")
         
         if selected_agent != "-- إدخال يدوي حر --":
             if currency_name == "دولار":
