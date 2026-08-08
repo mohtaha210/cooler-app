@@ -98,7 +98,6 @@ def load_all_factories():
                         f_data["finished_goods"] = {model: 0 for model in f_data.get("bom", {}).keys()}
                     if "agents" not in f_data:
                         f_data["agents"] = {}
-                    # حماية وتحديث بيانات الوكلاء لضمان وجود المفاتيح دائماً
                     for ag_name, ag_info in f_data["agents"].items():
                         if not isinstance(ag_info, dict):
                             f_data["agents"][ag_name] = {"phone": "", "debt": 0.0, "transactions": []}
@@ -139,6 +138,7 @@ def ensure_arabic_font():
             st.error(f"خطأ في تحميل الخط العربي: {e}")
     return font_path
 
+# --- تعديل PDF قائمة الحساب (بدون اسم المعمل، وبجملة "قائمة حساب") ---
 def generate_receipt_pdf(factory_name, customer_name, date_str, items_data, grand_total, paid_amount, remaining_amount, receipt_no):
     font_path = ensure_arabic_font()
     pdf = FPDF()
@@ -146,21 +146,18 @@ def generate_receipt_pdf(factory_name, customer_name, date_str, items_data, gran
     
     if os.path.exists(font_path):
         pdf.add_font("Amiri", "", font_path)
-        pdf.set_font("Amiri", "", 20)
+        pdf.set_font("Amiri", "", 22)
     else:
-        pdf.set_font("Arial", "B", 16)
+        pdf.set_font("Arial", "B", 18)
 
     pdf.set_text_color(30, 41, 59)
-    pdf.cell(0, 10, ar(factory_name), ln=True, align="C")
-
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 12)
-    pdf.set_text_color(100, 116, 139)
-    pdf.cell(0, 6, ar("وصل مبيعات ونقدية / Receipt"), ln=True, align="C")
-    pdf.ln(8)
+    # استبدال العنوان بـ "قائمة حساب" مباشرةً
+    pdf.cell(0, 12, ar("قائمة حساب"), ln=True, align="C")
+    pdf.ln(6)
 
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
     pdf.set_text_color(51, 65, 85)
-    pdf.cell(0, 6, ar(f"رقم الوصل: #{receipt_no}"), ln=True, align="R")
+    pdf.cell(0, 6, ar(f"رقم القائمة: #{receipt_no}"), ln=True, align="R")
     pdf.cell(0, 6, ar(f"التاريخ: {date_str}"), ln=True, align="R")
     pdf.cell(0, 6, ar(f"اسم العميل / الوكيل: {customer_name}"), ln=True, align="R")
     pdf.ln(6)
@@ -196,9 +193,10 @@ def generate_receipt_pdf(factory_name, customer_name, date_str, items_data, gran
     pdf.cell(130, 8, ar("المبلغ المتبقي (دين على الوكيل)"), border=1, align="C")
     pdf.ln(20)
 
-    pdf.cell(0, 6, ar("توقيع / ختم المعمل: .........................."), ln=True, align="L")
+    pdf.cell(0, 6, ar("توقيع المستلم: .........................."), ln=True, align="L")
     return bytes(pdf.output())
 
+# --- تعديل PDF وصل القبض (إضافة "معمل الرافدين لانتاج برادات الماء" وجملة "وصل قبض") ---
 def generate_payment_pdf(factory_name, agent_name, date_str, amount, remaining_debt, receipt_no):
     font_path = ensure_arabic_font()
     pdf = FPDF()
@@ -211,16 +209,18 @@ def generate_payment_pdf(factory_name, agent_name, date_str, amount, remaining_d
         pdf.set_font("Arial", "B", 16)
 
     pdf.set_text_color(30, 41, 59)
-    pdf.cell(0, 10, ar(factory_name), ln=True, align="C")
+    # إضافة اسم المعمل المحدد بالطلب
+    pdf.cell(0, 10, ar("معمل الرافدين لانتاج برادات الماء"), ln=True, align="C")
 
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 12)
+    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 14)
     pdf.set_text_color(100, 116, 139)
-    pdf.cell(0, 6, ar("وصل تسديد سند / قبض دين"), ln=True, align="C")
+    # إضافة جملة "وصل قبض"
+    pdf.cell(0, 8, ar("وصل قبض"), ln=True, align="C")
     pdf.ln(8)
 
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
     pdf.set_text_color(51, 65, 85)
-    pdf.cell(0, 6, ar(f"رقم السند: #{receipt_no}"), ln=True, align="R")
+    pdf.cell(0, 6, ar(f"رقم الوصل: #{receipt_no}"), ln=True, align="R")
     pdf.cell(0, 6, ar(f"التاريخ: {date_str}"), ln=True, align="R")
     pdf.cell(0, 6, ar(f"استلمنا من السيد/الوكيل: {agent_name}"), ln=True, align="R")
     pdf.cell(0, 6, ar(f"مبلغ وقدره: {amount:,} دينار عراقي"), ln=True, align="R")
@@ -347,7 +347,7 @@ if st.session_state.role == "admin":
     tabs = st.tabs([
         "📊 التقارير الشاملة",
         "🤝 إدارة الوكلاء والديون",
-        "🛒 بيع براد / وصل قبض",
+        "🛒 بيع براد / قائمة حساب",
         "🏭 تسجيل إنتاج براد",
         "📦 إدارة المخزون",
         "👥 إدارة الحسابات والموظفين",
@@ -357,7 +357,7 @@ if st.session_state.role == "admin":
     ])
 else:
     tabs = st.tabs([
-        "🛒 بيع براد / وصل قبض",
+        "🛒 بيع براد / قائمة حساب",
         "🤝 الوكلاء والديون",
         "🏭 تسجيل إنتاج براد",
         "📦 المخزون الحالي",
@@ -387,7 +387,6 @@ if st.session_state.role == "admin":
             month_sales_count = month_sales["items_count"].sum() if not month_sales.empty else 0
             month_revenue = month_sales["total"].sum() if not month_sales.empty else 0
 
-        # حماية من KeyError بالحصول على القيمة بـ get
         total_debts = sum(agent.get("debt", 0.0) for agent in factory_data["agents"].values() if isinstance(agent, dict))
 
         st.subheader("📅 ملخص حركة اليوم والشهر والديون")
@@ -443,7 +442,7 @@ with tab_agents:
                 st.rerun()
 
     with sub_ag2:
-        st.subheader("تسديد مبلغ مال من الوكيل (وصل قبض دفعة)")
+        st.subheader("تسديد مبلغ مال من الوكيل (وصل قبض)")
         agents_list = list(factory_data["agents"].keys())
         if not agents_list:
             st.info("لا يوجد وكلاء مسجلون حالياً.")
@@ -467,7 +466,7 @@ with tab_agents:
                     "type": "تسديد دفعة",
                     "amount": -pay_amount,
                     "balance": new_debt,
-                    "note": f"سند قبض #{receipt_no} - {pay_note}"
+                    "note": f"وصل قبض #{receipt_no} - {pay_note}"
                 })
 
                 save_all_factories(all_factories)
@@ -483,9 +482,9 @@ with tab_agents:
 
                 st.success(f"✅ تم خصم المبلغ. الدين المتبقي على الوكيل: {new_debt:,} د.ع")
                 st.download_button(
-                    label="📥 تنزيل وصل قبض التسديد (PDF)",
+                    label="📥 تنزيل وصل القبض (PDF)",
                     data=pdf_bytes,
-                    file_name=f"وصل_تسديد_{receipt_no}_{selected_ag}.pdf",
+                    file_name=f"وصل_قبض_{receipt_no}_{selected_ag}.pdf",
                     mime="application/pdf",
                     use_container_width=True
                 )
@@ -511,10 +510,10 @@ with tab_agents:
             else:
                 st.write("لا توجد معاملات مسجلة لهذا الوكيل بعد.")
 
-# --- تبويب بيع البرادات وإصدار وصل قبض ---
+# --- تبويب بيع البرادات وإصدار قائمة حساب ---
 tab_receipt = tabs[2] if st.session_state.role == "admin" else tabs[0]
 with tab_receipt:
-    st.header("🛒 بيع البرادات الجاهزة وإصدار وصل قبض")
+    st.header("🛒 بيع البرادات الجاهزة وإصدار قائمة حساب")
 
     customer_type = st.radio("نوع المشتري:", ["مشتري مباشر (نقداً)", "وكيل مسجل (بالأجل / نقد جزئي)"], horizontal=True)
 
@@ -577,7 +576,7 @@ with tab_receipt:
             paid_amount = float(grand_total)
             remaining_amount = 0.0
 
-        if st.button("🛒 تأكيد البيع وتوليد وصل القبض (PDF)", type="primary", use_container_width=True):
+        if st.button("🛒 تأكيد البيع وتوليد قائمة حساب (PDF)", type="primary", use_container_width=True):
             if stock_error:
                 st.error("❌ لا يمكنك بيع عدد أكثر من البرادات المتاحة في المخزن!")
             elif not customer_name.strip():
@@ -587,11 +586,9 @@ with tab_receipt:
             else:
                 receipt_no = factory_data.get("receipt_counter", 1001)
                 
-                # خصم البرادات من المخزن
                 for item in selected_items:
                     factory_data["finished_goods"][item["model"]] -= item["count"]
 
-                # تحديث حساب الوكيل والدين إن وجد
                 if selected_agent_name and selected_agent_name in factory_data["agents"]:
                     if remaining_amount > 0:
                         old_debt = factory_data["agents"][selected_agent_name].get("debt", 0.0)
@@ -602,7 +599,7 @@ with tab_receipt:
                             "type": "شراء برادات (متبقي)",
                             "amount": remaining_amount,
                             "balance": new_debt,
-                            "note": f"فاتورة مبيعات #{receipt_no}"
+                            "note": f"قائمة حساب #{receipt_no}"
                         })
 
                 pdf_bytes = generate_receipt_pdf(
@@ -631,9 +628,9 @@ with tab_receipt:
 
                 st.success("✅ تم تسجيل عملية البيع وخصم البرادات وترحيل الحساب بنجاح!")
                 st.download_button(
-                    label="📥 تنزيل وصل القبض PDF",
+                    label="📥 تنزيل قائمة الحساب PDF",
                     data=pdf_bytes,
-                    file_name=f"وصل_مبيعات_{receipt_no}_{customer_name}.pdf",
+                    file_name=f"قائمة_حساب_{receipt_no}_{customer_name}.pdf",
                     mime="application/pdf",
                     use_container_width=True,
                 )
@@ -743,7 +740,6 @@ if st.session_state.role == "admin":
     with tabs[5]:
         st.header("👥 إدارة الحسابات والموظفين")
 
-        # 1. إضافة حساب جديد
         st.subheader("➕ إضافة حساب موظف/مدير جديد")
         col_u_a1, col_u_a2 = st.columns(2)
         with col_u_a1:
@@ -774,7 +770,6 @@ if st.session_state.role == "admin":
 
         st.write("---")
 
-        # 2. تعديل بيانات حساب موجود
         st.subheader("✏️ تعديل بيانات حساب")
         user_list = list(factory_data["users"].keys())
         selected_user_to_edit = st.selectbox("اختر الحساب المراد تعديله:", user_list)
@@ -791,7 +786,7 @@ if st.session_state.role == "admin":
                     "الصلاحية:",
                     ["staff", "admin"],
                     index=0 if u_data.get("role") == "staff" else 1,
-                    format_func=lambda x: "👷 موظف" if x == "staff" else "👑 مدير",
+                    format_func=lambda x: " موظف" if x == "staff" else " مدير",
                     key="edit_role"
                 )
 
