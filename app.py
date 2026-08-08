@@ -112,33 +112,39 @@ def ar(text):
     reshaped_text = arabic_reshaper.reshape(str(text))
     return get_display(reshaped_text)
 
+@st.cache_resource
 def ensure_arabic_font():
     font_path = "Amiri-Regular.ttf"
     if not os.path.exists(font_path):
-        url = "https://github.com/google/fonts/raw/main/ofl/amiri/Amiri-Regular.ttf"
-        response = requests.get(url)
-        with open(font_path, "wb") as f:
-            f.write(response.content)
+        try:
+            url = "https://github.com/google/fonts/raw/main/ofl/amiri/Amiri-Regular.ttf"
+            response = requests.get(url, timeout=10)
+            with open(font_path, "wb") as f:
+                f.write(response.content)
+        except Exception as e:
+            st.error(f"خطأ في تحميل الخط العربي: {e}")
     return font_path
 
-def generate_receipt_pdf(
-    factory_name, customer_name, date_str, items_data, grand_total, receipt_no
-):
+def generate_receipt_pdf(factory_name, customer_name, date_str, items_data, grand_total, receipt_no):
     font_path = ensure_arabic_font()
     pdf = FPDF()
     pdf.add_page()
-    pdf.add_font("Amiri", "", font_path)
+    
+    if os.path.exists(font_path):
+        pdf.add_font("Amiri", "", font_path)
+        pdf.set_font("Amiri", "", 20)
+    else:
+        pdf.set_font("Arial", "B", 16)
 
-    pdf.set_font("Amiri", "", 20)
     pdf.set_text_color(30, 41, 59)
     pdf.cell(0, 10, ar(factory_name), ln=True, align="C")
 
-    pdf.set_font("Amiri", "", 12)
+    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 12)
     pdf.set_text_color(100, 116, 139)
     pdf.cell(0, 6, ar("وصل قبض ومبيعات / Receipt"), ln=True, align="C")
     pdf.ln(8)
 
-    pdf.set_font("Amiri", "", 11)
+    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
     pdf.set_text_color(51, 65, 85)
     pdf.cell(0, 6, ar(f"رقم الوصل: #{receipt_no}"), ln=True, align="R")
     pdf.cell(0, 6, ar(f"التاريخ: {date_str}"), ln=True, align="R")
@@ -147,7 +153,6 @@ def generate_receipt_pdf(
 
     pdf.set_fill_color(30, 41, 59)
     pdf.set_text_color(255, 255, 255)
-    pdf.set_font("Amiri", "", 12)
 
     col_widths = [40, 40, 30, 80]
     headers = [ar("الإجمالي"), ar("سعر البراد"), ar("الكمية"), ar("نوع البراد")]
@@ -157,7 +162,6 @@ def generate_receipt_pdf(
 
     pdf.set_fill_color(255, 255, 255)
     pdf.set_text_color(33, 37, 41)
-    pdf.set_font("Amiri", "", 11)
 
     for item in items_data:
         pdf.cell(col_widths[0], 9, f"{item['total']:,}", border=1, align="C")
@@ -178,16 +182,10 @@ def generate_receipt_pdf(
     )
     pdf.ln(20)
 
-    pdf.cell(
-        0,
-        6,
-        ar("توقيع / ختم المعمل: .........................."),
-        ln=True,
-        align="L",
-    )
+    pdf.cell(0, 6, ar("توقيع / ختم المعمل: .........................."), ln=True, align="L")
     return bytes(pdf.output())
 
-# --- 3. إعداد الصفحة والجلسة مع حماية Refresh ---
+# --- 3. إعداد الصفحة والجلسة ---
 st.set_page_config(
     page_title="نظام إدارة المخزون والمعامل",
     page_icon="❄️",
@@ -197,7 +195,6 @@ st.set_page_config(
 
 all_factories = load_all_factories()
 
-# استرجاع البيانات المجهزة في الرابط
 query_params = st.query_params
 saved_factory = query_params.get("factory", None)
 saved_user = query_params.get("user", None)
@@ -209,7 +206,7 @@ if "authenticated" not in st.session_state:
     st.session_state.role = None
     st.session_state.user_fullname = ""
 
-# إعادة التسجيل تلقائياً عند Refresh إذا وجدت بيانات بالرابط
+# إعادة التسجيل تلقائياً عند التحديث
 if not st.session_state.authenticated and saved_factory and saved_user:
     if saved_factory in all_factories:
         factory_users = all_factories[saved_factory].get("users", {})
@@ -224,17 +221,13 @@ if not st.session_state.authenticated and saved_factory and saved_user:
 if not st.session_state.authenticated:
     st.title("❄️ نظام إدارة وتتبع المعامل والمخزون")
 
-    login_tab, register_tab = st.tabs(
-        ["🔑 تسجيل الدخول لمعمل", "🏭 إنشاء حساب معمل جديد"]
-    )
+    login_tab, register_tab = st.tabs(["🔑 تسجيل الدخول لمعمل", "🏭 إنشاء حساب معمل جديد"])
 
     with login_tab:
         st.subheader("دخول إلى حساب المعمل")
         factory_list = list(all_factories.keys())
         if not factory_list:
-            st.info(
-                "💡 لا توجد معامل مسجلة بالنظام حالياً. يرجى التوجه لتبويب [إنشاء حساب معمل جديد] في الأعلى."
-            )
+            st.info("💡 لا توجد معامل مسجلة بالنظام حالياً. يرجى التوجه لتبويب [إنشاء حساب معمل جديد] في الأعلى.")
         else:
             selected_factory = st.selectbox("اختر المعمل:", factory_list)
             username_input = st.text_input("اسم المستخدم:")
@@ -242,17 +235,13 @@ if not st.session_state.authenticated:
 
             if st.button("تسجيل الدخول", type="primary", use_container_width=True):
                 factory_users = all_factories[selected_factory].get("users", {})
-                if (
-                    username_input in factory_users
-                    and factory_users[username_input]["password"] == password_input
-                ):
+                if username_input in factory_users and factory_users[username_input]["password"] == password_input:
                     st.session_state.authenticated = True
                     st.session_state.factory_key = selected_factory
                     st.session_state.username = username_input
                     st.session_state.role = factory_users[username_input]["role"]
                     st.session_state.user_fullname = factory_users[username_input]["name"]
 
-                    # حفظ الحساب بالرابط لتجنب الخروج عند الـ Refresh
                     st.query_params["factory"] = selected_factory
                     st.query_params["user"] = username_input
 
@@ -273,9 +262,7 @@ if not st.session_state.authenticated:
             elif new_factory_name in all_factories:
                 st.error("اسم هذا المعمل مستخدم بالفعل! اختر اسماً آخر.")
             else:
-                all_factories[new_factory_name] = get_default_factory_data(
-                    new_factory_name, admin_user, admin_pass
-                )
+                all_factories[new_factory_name] = get_default_factory_data(new_factory_name, admin_user, admin_pass)
                 save_all_factories(all_factories)
                 st.success(f"✅ تم إنشاء [{new_factory_name}] بنجاح! يمكنك الآن تسجيل الدخول.")
 
@@ -283,8 +270,13 @@ if not st.session_state.authenticated:
 
 # --- 5. تحميل بيانات المعمل الحالي ---
 current_factory_name = st.session_state.factory_key
-factory_data = all_factories[current_factory_name]
+if current_factory_name not in all_factories:
+    st.error("حدث خطأ في تحميل بيانات المعمل.")
+    st.session_state.authenticated = False
+    st.query_params.clear()
+    st.rerun()
 
+factory_data = all_factories[current_factory_name]
 if "finished_goods" not in factory_data:
     factory_data["finished_goods"] = {model: 0 for model in factory_data.get("bom", {}).keys()}
 
@@ -293,17 +285,13 @@ st.title(f"❄️ {current_factory_name}")
 
 col_u1, col_u2 = st.columns([3, 1])
 with col_u1:
-    role_badge = (
-        "👑 مدير المعمل (صلاحيات كاملة)"
-        if st.session_state.role == "admin"
-        else "👷 موظف (مبيعات وإنتاج)"
-    )
+    role_badge = "👑 مدير المعمل (صلاحيات كاملة)" if st.session_state.role == "admin" else "👷 موظف (مبيعات وإنتاج)"
     st.info(f"المستخدم الحالي: **{st.session_state.user_fullname}** | {role_badge}")
 with col_u2:
     if st.button("🚪 تسجيل الخروج", use_container_width=True):
         st.session_state.authenticated = False
         st.session_state.factory_key = None
-        st.query_params.clear() # تصفير الرابط ليتم تسجيل الخروج فعلياً
+        st.query_params.clear()
         st.rerun()
 
 st.write("---")
@@ -338,10 +326,8 @@ if st.session_state.role == "admin":
         sales_df = pd.DataFrame(factory_data.get("sales_history", []))
         prod_df = pd.DataFrame(factory_data.get("production_history", []))
 
-        today_sales_count = 0
-        today_revenue = 0
-        month_sales_count = 0
-        month_revenue = 0
+        today_sales_count, today_revenue = 0, 0
+        month_sales_count, month_revenue = 0, 0
 
         if not sales_df.empty:
             sales_df["date"] = pd.to_datetime(sales_df["date"])
@@ -350,13 +336,10 @@ if st.session_state.role == "admin":
 
             today_sales_count = today_sales["items_count"].sum() if not today_sales.empty else 0
             today_revenue = today_sales["total"].sum() if not today_sales.empty else 0
-
             month_sales_count = month_sales["items_count"].sum() if not month_sales.empty else 0
             month_revenue = month_sales["total"].sum() if not month_sales.empty else 0
 
-        today_prod_count = 0
-        month_prod_count = 0
-
+        today_prod_count, month_prod_count = 0, 0
         if not prod_df.empty:
             prod_df["date"] = pd.to_datetime(prod_df["date"])
             today_prod = prod_df[prod_df["date"].dt.strftime("%Y-%m-%d") == today_str]
@@ -397,15 +380,14 @@ if st.session_state.role == "admin":
                     if m_item in used_materials:
                         used_materials[m_item] += m_qty * p_count
 
-        mat_report = []
-        for item, current_qty in factory_data["inventory"].items():
-            used_qty = used_materials.get(item, 0.0)
-            mat_report.append({
+        mat_report = [
+            {
                 "المادة الخام": item,
-                "الكمية المستعملة في الإنتاج": used_qty,
+                "الكمية المستعملة في الإنتاج": used_materials.get(item, 0.0),
                 "الكمية المتبقية في المخزن": current_qty,
-            })
-        
+            }
+            for item, current_qty in factory_data["inventory"].items()
+        ]
         st.dataframe(pd.DataFrame(mat_report), use_container_width=True)
 
 # --- تبويب بيع البرادات وإصدار وصل قبض ---
@@ -423,8 +405,7 @@ with tab_receipt:
         st.warning("لا توجد أنواع برادات معرفة بالنظام.")
     else:
         selected_items = []
-        grand_total = 0
-        total_units = 0
+        grand_total, total_units = 0, 0
         stock_error = False
 
         st.subheader("اختر البرادات المباعة:")
@@ -439,11 +420,7 @@ with tab_receipt:
                 )
             with col_m3:
                 price = st.number_input(
-                    "سعر البراد الواحد:",
-                    min_value=0,
-                    value=0,
-                    step=5000,
-                    key=f"rec_price_{model}",
+                    "سعر البراد الواحد:", min_value=0, value=0, step=5000, key=f"rec_price_{model}"
                 )
 
             if qty > stock_available:
@@ -453,12 +430,7 @@ with tab_receipt:
                 total_p = qty * price
                 grand_total += total_p
                 total_units += qty
-                selected_items.append({
-                    "model": model,
-                    "count": qty,
-                    "price": price,
-                    "total": total_p,
-                })
+                selected_items.append({"model": model, "count": qty, "price": price, "total": total_p})
 
         st.markdown(f"### 💰 المبلغ الإجمالي الكلي: `{grand_total:,}` د.ع")
 
@@ -523,9 +495,7 @@ with tab_prod:
                 needed = qty * count
                 available = factory_data["inventory"].get(item, 0)
                 if available < needed:
-                    missing_items.append(
-                        f"- **{item}**: المطلوب ({needed})، المتوفر بالمخزن ({available})"
-                    )
+                    missing_items.append(f"- **{item}**: المطلوب ({needed})، المتوفر بالمخزن ({available})")
 
             if missing_items:
                 st.error("❌ لا يوجد مخزون مواد أولية كافٍ لإتمام التصنيع!")
@@ -687,7 +657,7 @@ if st.session_state.role == "admin":
 
         st.write("---")
 
-        # 3. إزالة الحسابات الغير مرغوب فيها
+        # 3. إزالة الحسابات غير المرغوب فيها
         st.subheader("🗑️ إزالة الحسابات غير المرغوب فيها")
         user_to_delete = st.selectbox("اختر الحساب المراد حذفه نهائياً:", user_list, key="del_user_select")
         
@@ -736,17 +706,20 @@ if st.session_state.role == "admin":
         )
 
         buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-            df_export.to_excel(writer, index=False, sheet_name="جرد_المواد_الخام")
-            df_fg_export.to_excel(writer, index=False, sheet_name="البرادات_الجاهزة")
+        try:
+            with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+                df_export.to_excel(writer, index=False, sheet_name="جرد_المواد_الخام")
+                df_fg_export.to_excel(writer, index=False, sheet_name="البرادات_الجاهزة")
 
-        st.download_button(
-            label="📥 تنزيل تقرير المخزون الشامل (Excel)",
-            data=buffer.getvalue(),
-            file_name=f"جرد_{current_factory_name}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
-        )
+            st.download_button(
+                label="📥 تنزيل تقرير المخزون الشامل (Excel)",
+                data=buffer.getvalue(),
+                file_name=f"جرد_{current_factory_name}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+            )
+        except Exception as e:
+            st.error("يرجى التأكد من تثبيت مكتبة openpyxl لتصدير Excel.")
 
     with tabs[6]:
         st.header("إضافة مادة خام جديدة كلياً")
