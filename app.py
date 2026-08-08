@@ -427,7 +427,8 @@ elif selected_tab == "🤝 الديون والوكلاء":
 # 3️⃣ بيع / قائمة حساب
 # -------------------------------------------------------------
 elif selected_tab == "🛒 بيع / قائمة حساب":
-    st.markdown("### 🛒 بيع براد / قائمة حساب")
+    st.markdown("### 🛒 بيع براد / إصدار قائمة حساب (وصل قبض)")
+
     c_type = st.radio(
         "نوع المشتري:",
         ["مباشر (نقداً)", "وكيل مسجل"],
@@ -475,22 +476,98 @@ elif selected_tab == "🛒 بيع / قائمة حساب":
 
     st.markdown(f"#### الإجمالي النهائي: `{grand_total:,}` د.ع")
 
-    if st.button("🛒 تأكيد عملية البيع", type="primary", key="confirm_sale_btn"):
-        if customer_name and selected_items:
+    if st.button(
+        "🛒 تأكيد عملية البيع وإصدار الوصل", type="primary", key="confirm_sale_btn"
+    ):
+        if not customer_name:
+            st.error("الرجاء إدخال اسم المشتري أو اختيار الوكيل.")
+        elif not selected_items:
+            st.error("الرجاء تحديد براد واحد على الأقل للبيع.")
+        else:
             receipt_no = factory_data.get("receipt_counter", 1001)
+
             for item in selected_items:
                 factory_data["finished_goods"][item["model"]] -= item["count"]
 
-            factory_data["sales_history"].append({
+            sale_record = {
                 "receipt_no": receipt_no,
-                "date": datetime.now().strftime("%Y-%m-%d"),
+                "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                 "customer": customer_name,
-                "items_count": len(selected_items),
+                "items": selected_items,
                 "total": grand_total,
-            })
+            }
+
+            factory_data["sales_history"].append(sale_record)
+
+            if c_type == "وكيل مسجل" and customer_name in factory_data["agents"]:
+                current_debt = factory_data["agents"][customer_name].get(
+                    "debt", 0.0
+                )
+                new_debt = current_debt + grand_total
+                factory_data["agents"][customer_name]["debt"] = new_debt
+                factory_data["agents"][customer_name].setdefault(
+                    "transactions", []
+                ).append({
+                    "date": datetime.now().strftime("%Y-%m-%d"),
+                    "type": "شراء بضاعة (قائمة)",
+                    "amount": grand_total,
+                    "balance": new_debt,
+                    "note": f"وصل قبض/بيع #{receipt_no}",
+                })
+
             factory_data["receipt_counter"] = receipt_no + 1
             save_all_factories(all_factories)
-            st.success("تم تسجيل المبيعات وخصم البرادات من المخزون!")
+
+            st.success(f"✅ تم إتمام البيع بنجاح! رقم الوصل: #{receipt_no}")
+            st.session_state["last_receipt"] = sale_record
+            st.rerun()
+
+    if "last_receipt" in st.session_state:
+        rec = st.session_state["last_receipt"]
+        st.markdown("---")
+        st.markdown(
+            "### 📄 تفاصيل وصل القبض / قائمة الحساب الإصدار الأخير"
+        )
+
+        receipt_html = f"""
+        <div style="background-color: #ffffff; color: #000000; padding: 20px; border-radius: 10px; direction: rtl; font-family: Tahoma;">
+            <h2 style="text-align: center; color: #0f172a; margin-bottom: 5px;">🏭 {current_factory_name}</h2>
+            <h4 style="text-align: center; color: #475569; margin-top: 0;">وصل قبض وقائمة حساب</h4>
+            <hr style="border: 1px solid #cbd5e1;">
+            <p><strong>رقم الوصل:</strong> #{rec['receipt_no']}</p>
+            <p><strong>التاريخ:</strong> {rec['date']}</p>
+            <p><strong>اسم الزبون / الوكيل:</strong> {rec['customer']}</p>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+                <thead>
+                    <tr style="background-color: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+                        <th style="padding: 8px; text-align: right;">المادة / البراد</th>
+                        <th style="padding: 8px; text-align: center;">العدد</th>
+                        <th style="padding: 8px; text-align: center;">السعر المفرد</th>
+                        <th style="padding: 8px; text-align: left;">الإجمالي</th>
+                    </tr>
+                </thead>
+                <tbody>
+        """
+        for itm in rec["items"]:
+            receipt_html += f"""
+                    <tr style="border-bottom: 1px solid #e2e8f0;">
+                        <td style="padding: 8px; text-align: right;">{itm['model']}</td>
+                        <td style="padding: 8px; text-align: center;">{itm['count']}</td>
+                        <td style="padding: 8px; text-align: center;">{itm['price']:,} د.ع</td>
+                        <td style="padding: 8px; text-align: left;">{itm['total']:,} د.ع</td>
+                    </tr>
+            """
+        receipt_html += f"""
+                </tbody>
+            </table>
+            <h3 style="text-align: left; margin-top: 20px; color: #059669;">المبلغ الإجمالي: {rec['total']:,} د.ع</h3>
+            <p style="text-align: center; margin-top: 30px; font-size: 0.85rem; color: #64748b;">شكراً لتعاملكم معنا - معمل الرافدين</p>
+        </div>
+        """
+        st.markdown(receipt_html, unsafe_allow_html=True)
+
+        if st.button("إخفاء الوصل الحالي"):
+            del st.session_state["last_receipt"]
             st.rerun()
 
 # -------------------------------------------------------------
