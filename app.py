@@ -479,6 +479,23 @@ elif selected_tab == "🛒 بيع / قائمة حساب":
             for item in selected_items:
                 factory_data["finished_goods"][item["model"]] -= item["count"]
 
+            # إذا كان المشتري وكيلاً مسجلاً، أضف المبلغ إلى ذمته
+            if c_type == "وكيل مسجل":
+                current_debt = factory_data["agents"][customer_name].get(
+                    "debt", 0.0
+                )
+                new_debt = current_debt + grand_total
+                factory_data["agents"][customer_name]["debt"] = new_debt
+                factory_data["agents"][customer_name].setdefault(
+                    "transactions", []
+                ).append({
+                    "date": datetime.now().strftime("%Y-%m-%d"),
+                    "type": "شراء بضاعة (دين)",
+                    "amount": grand_total,
+                    "balance": new_debt,
+                    "note": f"وصل بيع #{receipt_no}",
+                })
+
             factory_data["sales_history"].append({
                 "receipt_no": receipt_no,
                 "date": datetime.now().strftime("%Y-%m-%d"),
@@ -488,7 +505,7 @@ elif selected_tab == "🛒 بيع / قائمة حساب":
             })
             factory_data["receipt_counter"] = receipt_no + 1
             save_all_factories(all_factories)
-            st.success("تم تسجيل المبيعات وخصم البرادات من المخزون!")
+            st.success("تم تسجيل المبيعات وخصم البرادات من المخزون بنجاح!")
             st.rerun()
 
 # -------------------------------------------------------------
@@ -580,35 +597,44 @@ elif selected_tab == "📄 تصدير تقارير Excel":
         st.download_button(
             label="📊 تنزيل تقرير المبيعات (Excel)",
             data=buffer.getvalue(),
-            file_name=f"تقرير_المبيعات_{datetime.now().strftime('%Y%m%d')}.xlsx",
-            mime="application/vnd.ms-excel",
-            type="primary",
-            key="download_excel_btn",
+            file_name=f"sales_report_{current_factory_name}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
         )
     else:
-        st.info("لا توجد مبيعات لتصديرها.")
+        st.info("لا توجد بيانات مبيعات كافية لتصديرها حالياً.")
 
 # -------------------------------------------------------------
 # 8️⃣ إضافة مادة خام
 # -------------------------------------------------------------
 elif selected_tab == "➕ إضافة مادة خام":
-    st.markdown("### ➕ إضافة أو تعديل كمية مادة خام")
-    new_mat_name = st.text_input("اسم المادة الخام:", key="new_mat_name_input")
-    add_qty = st.number_input(
-        "الكمية المراد إضافتها للمخزن:", min_value=0.0, key="add_mat_qty_input"
+    st.markdown("### ➕ إضافة مادة خام جديدة أو توريد كمية")
+    new_mat_name = st.text_input(
+        "اسم المادة الخام الجديدة:", key="new_mat_name"
+    )
+    new_mat_qty = st.number_input(
+        "الكمية المضافة:", min_value=0.0, step=1.0, key="new_mat_qty"
     )
 
-    if st.button("حفظ المادة بالمخزن", type="primary", key="save_mat_btn"):
+    if st.button(
+        "حفظ وتحديث المخزون", type="primary", key="save_new_mat_btn"
+    ):
         if new_mat_name:
-            curr = factory_data["inventory"].get(new_mat_name, 0.0)
-            factory_data["inventory"][new_mat_name] = curr + add_qty
+            current_qty = factory_data["inventory"].get(new_mat_name, 0.0)
+            factory_data["inventory"][new_mat_name] = current_qty + new_mat_qty
             save_all_factories(all_factories)
-            st.success(f"تم تحديث مخزون {new_mat_name} بنجاح!")
+            st.success(f"تم تحديث المخزون للمادة ({new_mat_name}) بنجاح!")
             st.rerun()
 
 # -------------------------------------------------------------
 # 9️⃣ أنواع البرادات (BOM)
 # -------------------------------------------------------------
 elif selected_tab == "🛠️ أنواع البرادات (BOM)":
-    st.markdown("### 🛠️ المكونات المعيارية للإنتاج (Bill of Materials)")
-    st.json(factory_data["bom"])
+    st.markdown("### 🛠️ مكونات وتراكيب البرادات (قائمة المواد)")
+    for model_name, bom_dict in factory_data["bom"].items():
+        with st.expander(f"مكونات براد: {model_name}"):
+            bom_df = pd.DataFrame(
+                list(bom_dict.items()),
+                columns=["المادة الخام", "الكمية المطلوبة للوحدة"],
+            )
+            st.dataframe(bom_df, use_container_width=True)
