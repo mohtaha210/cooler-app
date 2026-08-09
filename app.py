@@ -39,13 +39,13 @@ def get_default_factory_data(factory_name, admin_user, admin_pass):
             "كبلري 1.7m": 50.0,
             "كويل": 50.0,
             "بوري ربع 1.5m": 50.0,
-            "طبقة وربع بليت": 50.0,
+            "طبقة وربع بليت": 1.25,
         },
         "finished_goods": {
             "براد حنفية واحدة": 0,
             "براد حنفيتين": 0,
         },
-        "agents": {},  # {"اسم الوكيل": {"phone": "", "debt": 0.0, "transactions": []}}
+        "agents": {},
         "bom": {
             "براد حنفية واحدة": {
                 "الحنفية": 1,
@@ -102,6 +102,10 @@ def load_all_factories():
                         }
                     if "agents" not in f_data:
                         f_data["agents"] = {}
+                    if "sales_history" not in f_data:
+                        f_data["sales_history"] = []
+                    if "production_history" not in f_data:
+                        f_data["production_history"] = []
                     for ag_name, ag_info in f_data["agents"].items():
                         if not isinstance(ag_info, dict):
                             f_data["agents"][ag_name] = {
@@ -150,7 +154,6 @@ def ensure_arabic_font():
     return font_path
 
 
-# --- تعديل PDF قائمة الحساب (تم إزالة "دين على الوكيل") ---
 def generate_receipt_pdf(
     factory_name,
     customer_name,
@@ -223,7 +226,6 @@ def generate_receipt_pdf(
     pdf.cell(130, 8, ar("المبلغ المدفوع نقدياً"), border=1, align="C")
     pdf.ln()
     pdf.cell(60, 8, f"{remaining_amount:,} د.ع", border=1, align="C")
-    # تم تعديل النص هنا لإزالة (دين على الوكيل)
     pdf.cell(130, 8, ar("المبلغ المتبقي"), border=1, align="C")
     pdf.ln(20)
 
@@ -233,7 +235,6 @@ def generate_receipt_pdf(
     return bytes(pdf.output())
 
 
-# --- تعديل PDF وصل القبض ---
 def generate_payment_pdf(
     factory_name, agent_name, date_str, amount, remaining_debt, receipt_no
 ):
@@ -454,13 +455,15 @@ if st.session_state.role == "admin":
         current_month_str = datetime.now().strftime("%Y-%m")
 
         sales_df = pd.DataFrame(factory_data.get("sales_history", []))
-        prod_df = pd.DataFrame(factory_data.get("production_history", []))
 
         today_sales_count, today_revenue = 0, 0
         month_sales_count, month_revenue = 0, 0
 
-        if not sales_df.empty:
-            sales_df["date"] = pd.to_datetime(sales_df["date"])
+        if not sales_df.empty and "date" in sales_df.columns:
+            # معالجة التواريخ بأمان وتجنب أخطاء القيم الفارغة
+            sales_df["date"] = pd.to_datetime(
+                sales_df["date"], errors="coerce"
+            )
             today_sales = sales_df[
                 sales_df["date"].dt.strftime("%Y-%m-%d") == today_str
             ]
