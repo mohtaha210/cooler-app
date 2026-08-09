@@ -1191,29 +1191,86 @@ if st.session_state.role == "admin":
                     st.rerun()
 
     with tabs[8]:
-        st.header("تعريف نموذج براد جديد وقائمة مكوناته")
-        new_model_name = st.text_input("اسم نموذج البراد الجديد:")
-        selected_ingredients = {}
+        st.header("🛠️ إدارة أنواع البرادات وقائمة مكوناتها (BOM)")
+        
+        bom_action = st.radio("اختر العملية:", ["إضافة نموذج جديد", "تعديل نموذج موجود", "حذف نموذج براد"], horizontal=True)
+        
+        model_list = list(factory_data["bom"].keys())
+        
+        if bom_action == "إضافة نموذج جديد":
+            new_model_name = st.text_input("اسم نموذج البراد الجديد:")
+            selected_ingredients = {}
 
-        for item in factory_data["inventory"].keys():
-            use_item = st.checkbox(f"يدخل فيه: {item}", key=f"chk_{item}")
-            if use_item:
-                qty_needed = st.number_input(
-                    f"الكمية المطلوبة من [{item}]:",
-                    min_value=0.1,
-                    value=1.0,
-                    key=f"qty_{item}",
-                )
-                selected_ingredients[item] = qty_needed
+            for item in factory_data["inventory"].keys():
+                use_item = st.checkbox(f"يدخل فيه: {item}", key=f"add_chk_{item}")
+                if use_item:
+                    qty_needed = st.number_input(
+                        f"الكمية المطلوبة من [{item}]:",
+                        min_value=0.1,
+                        value=1.0,
+                        key=f"add_qty_{item}",
+                    )
+                    selected_ingredients[item] = qty_needed
 
-        if st.button("🛠️ حفظ النموذج الجديد", use_container_width=True):
-            if new_model_name and selected_ingredients:
-                factory_data["bom"][new_model_name] = selected_ingredients
-                if new_model_name not in factory_data["finished_goods"]:
-                    factory_data["finished_goods"][new_model_name] = 0
-                save_all_factories(all_factories)
-                st.success(f"✅ تم تعريف النموذج [{new_model_name}] بنجاح!")
-                st.rerun()
+            if st.button("🛠️ حفظ النموذج الجديد", use_container_width=True):
+                if new_model_name and selected_ingredients:
+                    factory_data["bom"][new_model_name] = selected_ingredients
+                    if new_model_name not in factory_data["finished_goods"]:
+                        factory_data["finished_goods"][new_model_name] = 0
+                    save_all_factories(all_factories)
+                    st.success(f"✅ تم تعريف النموذج [{new_model_name}] بنجاح!")
+                    st.rerun()
+                else:
+                    st.error("يرجى إدخال اسم النموذج واختيار مادة واحدة على الأقل.")
+
+        elif bom_action == "تعديل نموذج موجود":
+            if not model_list:
+                st.info("لا توجد نماذج برادات مسجلة لتعديلها.")
+            else:
+                selected_model_to_edit = st.selectbox("اختر نموذج البراد للتعديل:", model_list, key="edit_bom_select")
+                current_bom = factory_data["bom"][selected_model_to_edit]
+                
+                st.write(f"### تعديل مكونات البراد: {selected_model_to_edit}")
+                updated_ingredients = {}
+
+                for item in factory_data["inventory"].keys():
+                    is_in_bom = item in current_bom
+                    default_val = current_bom.get(item, 1.0)
+                    
+                    use_item = st.checkbox(f"يدخل فيه: {item}", value=is_in_bom, key=f"edit_chk_{item}")
+                    if use_item:
+                        qty_needed = st.number_input(
+                            f"الكمية المطلوبة من [{item}]:",
+                            min_value=0.1,
+                            value=float(default_val),
+                            key=f"edit_qty_{item}",
+                        )
+                        updated_ingredients[item] = qty_needed
+
+                if st.button("💾 حفظ التعديلات على النموذج", use_container_width=True):
+                    if updated_ingredients:
+                        factory_data["bom"][selected_model_to_edit] = updated_ingredients
+                        save_all_factories(all_factories)
+                        st.success(f"✅ تم تحديث مكونات النموذج [{selected_model_to_edit}] بنجاح!")
+                        st.rerun()
+                    else:
+                        st.error("يجب أن يحتوي النموذج على مادة خام واحدة على الأقل.")
+
+        elif bom_action == "حذف نموذج براد":
+            if not model_list:
+                st.info("لا توجد نماذج برادات مسجلة لحذفها.")
+            else:
+                model_to_delete = st.selectbox("اختر النموذج المراد حذفه:", model_list, key="del_bom_select")
+                st.warning(f"⚠️ تحذير: سيتم حذف نموذج البراد ({model_to_delete}) من قائمة التصنيع (BOM). (ملاحظة: المخزون الجاهز الحالي لن يتم حذفه تلقائياً إلا إذا رغبت بذلك).")
+                
+                if st.button("🗑️ تأكيد حذف النموذج", type="primary", use_container_width=True):
+                    if model_to_delete in factory_data["bom"]:
+                        del factory_data["bom"][model_to_delete]
+                        if model_to_delete in factory_data["finished_goods"]:
+                            del factory_data["finished_goods"][model_to_delete]
+                        save_all_factories(all_factories)
+                        st.success(f"✅ تم حذف النموذج [{model_to_delete}] بنجاح!")
+                        st.rerun()
 
     with tabs[9]:
         st.header("⚠️ فورمات كامل وإعادة تعيين النظام بالكامل")
