@@ -1,5 +1,4 @@
 from datetime import datetime
-import io
 import json
 import os
 import pandas as pd
@@ -7,7 +6,7 @@ import streamlit as st
 
 # --- إعدادات وتخطيط الصفحة ---
 st.set_page_config(
-    page_title="معاش - نظام إدارة معمل البرادات",
+    page_title=" - نظام إدارة معمل الرافدين للبرادات",
     page_icon="🍏",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -17,53 +16,27 @@ st.set_page_config(
 st.markdown(
     """
 <style>
-    .stApp {
-        background-color: #0b1120;
-        color: #f1f5f9;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    }
-    .block-container {
-        padding-top: 1.2rem !important;
-        padding-bottom: 2rem !important;
-        padding-left: 0.8rem !important;
-        padding-right: 0.8rem !important;
-    }
-    div[data-testid="stMetric"] {
-        background-color: #162032 !important;
-        border: 1px solid #23324d !important;
-        border-radius: 12px !important;
-        padding: 12px !important;
-    }
-    div[data-testid="stMetricValue"] {
-        color: #38bdf8 !important;
-        font-weight: 700 !important;
-        font-size: 1.3rem !important;
-    }
-    .stSelectbox > div > div, .stTextInput input, .stNumberInput input {
-        background-color: #111827 !important;
-        color: #ffffff !important;
-        border: 1px solid #2d3e5d !important;
-        border-radius: 8px !important;
-        text-align: right !important;
-        direction: rtl !important;
-    }
+    .stApp { background-color: #0b1120; color: #f1f5f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    .block-container { padding-top: 1.2rem !important; padding-bottom: 2rem !important; }
+    div[data-testid="stMetricValue"] { color: #38bdf8 !important; font-weight: 700 !important; font-size: 1.3rem !important; }
+    .stSelectbox > div > div, .stTextInput input, .stNumberInput input { background-color: #111827 !important; color: #ffffff !important; border: 1px solid #2d3e5d !important; border-radius: 8px !important; text-align: right !important; direction: rtl !important; }
     #MainMenu, footer, header {visibility: hidden;}
 </style>
 """,
     unsafe_allow_html=True,
 )
 
-DATA_FILE = "maash_factory_data.json"
+DATA_FILE = "rafidain_factory_data.json"
 
 
 def get_default_data():
     return {
-        "inventory": {},  # المواد الخام
-        "bom": {},  # وصفة مواد البراد
-        "finished_goods": {},  # البرادات الجاهزة بالمخزن
-        "agents": {},  # الوكلاء وديونهم
-        "sales_history": [],  # سجل المبيعات
-        "production_history": [],  # سجل الإنتاج
+        "inventory": {},
+        "bom": {},
+        "finished_goods": {},
+        "agents": {},
+        "sales_history": [],
+        "production_history": [],
         "receipt_counter": 1001,
     }
 
@@ -86,40 +59,33 @@ def save_data(data):
 db = load_data()
 
 st.markdown(
-    "<h2 style='text-align: center; color: #ffffff;'>🍏 نظام معاش لإدارة معمل"
-    " البرادات</h2>",
+    "<h2 style='text-align: center; color: #ffffff;'>🍏 نظام معاش - معمل"
+    " الرافدين للبرادات</h2>",
     unsafe_allow_html=True,
 )
 st.divider()
 
-# --- القائمة الرئيسية للتنقل ---
 tabs = st.tabs([
     "📦 المواد الخام",
-    "🛠️ وصفات البرادات (BOM)",
-    "🏭 الإنتاج والتصنيع",
+    "🛠️ وصفات البرادات",
+    "🏭 الإنتاج",
     "🤝 الوكلاء والديون",
     "🛒 المبيعات والفواتير",
-    "📊 التقارير المالية",
+    "📊 التقارير",
 ])
 
-# -------------------------------------------------------------
-# 1. إدخال وإدارة المواد الخام
-# -------------------------------------------------------------
+# 1. المواد الخام
 with tabs[0]:
-    st.markdown("### 📦 إدارة المخزون من المواد الخام")
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("#### إضافة مادة خام جديدة أو تحديث رصيد")
-        mat_name = st.text_input("اسم المادة الخام:", key="input_mat_name_unique")
+    st.markdown("### 📦 إدارة المخزون الخام")
+    c1, c2 = st.columns(2)
+    with c1:
+        mat_name = st.text_input("اسم المادة الخام:", key="m_name")
         mat_qty = st.number_input(
-            "الكمية الواردة:",
-            min_value=0.0,
-            step=1.0,
-            value=0.0,
-            key="input_mat_qty_unique",
+            "الكمية الواردة:", min_value=0.0, step=1.0, key="m_qty"
         )
-        if st.button("➕ حفظ وإضافة للمخزن", type="primary", key="btn_save_mat_unique"):
+        if st.button(
+            "➕ إضافة للمخزن", type="primary", key="btn_add_mat_unique"
+        ):
             if mat_name:
                 db["inventory"][mat_name] = (
                     db["inventory"].get(mat_name, 0.0) + mat_qty
@@ -127,361 +93,234 @@ with tabs[0]:
                 save_data(db)
                 st.success(f"تم تحديث مخزون '{mat_name}' بنجاح!")
                 st.rerun()
-            else:
-                st.warning("يرجى إدخال اسم المادة.")
-
-    with col2:
-        st.markdown("#### المواد الخام الحالية بالمخزن")
+    with c2:
         if db["inventory"]:
-            inv_df = pd.DataFrame(
-                list(db["inventory"].items()),
-                columns=["المادة الخام", "الكمية المتوفرة"],
+            st.dataframe(
+                pd.DataFrame(
+                    list(db["inventory"].items()),
+                    columns=["المادة", "الكمية المتوفرة"],
+                ),
+                use_container_width=True,
             )
-            st.dataframe(inv_df, use_container_width=True)
         else:
-            st.info("لا توجد مواد خام مسجلة بعد.")
+            st.info("لا توجد مواد خام مسجلة.")
 
-# -------------------------------------------------------------
-# 2. وصفات تصنيع البرادات (BOM)
-# -------------------------------------------------------------
+# 2. وصفات البرادات
 with tabs[1]:
-    st.markdown("### 🛠️ تحديد احتياجات كل براد من المواد الخام")
-
+    st.markdown("### 🛠️ تحديد وصفات البرادات (BOM)")
     if not db["inventory"]:
-        st.warning("الرجاء إضافة مواد خام أولاً لكي تتمكن من اختيارها للبراد.")
+        st.warning("أضف مواد خام أولاً.")
     else:
-        col1, col2 = st.columns(2)
-        with col1:
-            model_name = st.text_input(
-                "اسم نموذج البراد (مثال: براد حنفية):",
-                key="input_model_name_unique",
-            )
-            st.markdown("#### المواد المطلوبة لتصنيع وحدة واحدة:")
-
+        c1, c2 = st.columns(2)
+        with c1:
+            model_name = st.text_input("اسم نموذج البراد:", key="mod_name")
             if "temp_bom" not in st.session_state:
                 st.session_state.temp_bom = {}
 
-            selected_mat = st.selectbox(
+            sel_mat = st.selectbox(
                 "اختر مادة خام:",
                 list(db["inventory"].keys()),
-                key="select_mat_for_bom_unique",
+                key="sel_mat_bom_unique",
             )
-            needed_qty = st.number_input(
-                "الكمية المطلوبة للوحدة:",
-                min_value=0.1,
-                value=1.0,
-                key="num_needed_qty_unique",
+            need_q = st.number_input(
+                "الكمية المطلوبة للوحدة:", min_value=0.1, key="need_q_unique"
             )
-
-            if st.button("➕ إضافة المادة للوصفة", key="btn_add_to_bom_unique"):
-                st.session_state.temp_bom[selected_mat] = needed_qty
-                st.success(f"تمت إضافة {selected_mat} للوصفة.")
+            if st.button(
+                "➕ إضافة مادة للوصفة", key="btn_add_bom_item_unique"
+            ):
+                st.session_state.temp_bom[sel_mat] = need_q
+                st.success("تمت الإضافة للوصفة المؤقتة.")
 
             if st.session_state.temp_bom:
-                st.write(
-                    "**المواد المحددة للبراد حتى الآن:**",
-                    st.session_state.temp_bom,
-                )
+                st.write(st.session_state.temp_bom)
                 if st.button(
-                    "💾 حفظ وصفة البراد النهائية",
+                    "💾 حفظ وصفة البراد",
                     type="primary",
-                    key="btn_save_recipe_unique",
+                    key="btn_save_bom_final",
                 ):
                     if model_name:
                         db["bom"][model_name] = st.session_state.temp_bom
                         db["finished_goods"].setdefault(model_name, 0)
                         save_data(db)
                         st.session_state.temp_bom = {}
-                        st.success(f"تم حفظ وصفة البراد '{model_name}' بنجاح!")
+                        st.success("تم حفظ الوصفة!")
                         st.rerun()
-                    else:
-                        st.warning("يرجى إدخال اسم نموذج البراد.")
-
-        with col2:
-            st.markdown("#### النماذج والوصفات المحفوظة")
+        with c2:
             if db["bom"]:
                 st.json(db["bom"])
-            else:
-                st.info("لم يتم إعداد أي وصفة براد بعد.")
 
-# -------------------------------------------------------------
-# 3. الإنتاج والتصنيع
-# -------------------------------------------------------------
+# 3. الإنتاج
 with tabs[2]:
-    st.markdown("### 🏭 تسجيل وجبة إنتاج برادات")
+    st.markdown("### 🏭 تسجيل الإنتاج")
+    if db["bom"]:
+        p_mod = st.selectbox(
+            "نموذج البراد:", list(db["bom"].keys()), key="p_mod_unique"
+        )
+        p_qty = st.number_input(
+            "عدد الوحدات:", min_value=1, value=1, key="p_qty_unique"
+        )
 
-    if not db["bom"]:
-        st.info("الرجاء تحديد وصفات البرادات (BOM) أولاً.")
+        bom_rec = db["bom"][p_mod]
+        can_p = True
+        for m, req in bom_rec.items():
+            if db["inventory"].get(m, 0) < req * p_qty:
+                can_p = False
+
+        if not can_p:
+            st.error("⚠️ مواد المخزن غير كافية للإنتاج!")
+        else:
+            if st.button(
+                "🚀 تأكيد الإنتاج", type="primary", key="btn_confirm_prod_unique"
+            ):
+                for m, req in bom_rec.items():
+                    db["inventory"][m] -= req * p_qty
+                db["finished_goods"][p_mod] = (
+                    db["finished_goods"].get(p_mod, 0) + p_qty
+                )
+                save_data(db)
+                st.success("تم الإنتاج وخصم المواد بنجاح!")
+                st.rerun()
     else:
-        prod_model = st.selectbox(
-            "اختر نموذج البراد للتصنيع:",
-            list(db["bom"].keys()),
-            key="select_prod_model_unique",
-        )
-        prod_count = st.number_input(
-            "عدد الوحدات المراد إنتاجها:",
-            min_value=1,
-            value=1,
-            key="num_prod_count_unique",
-        )
+        st.info("لا توجد وصفات برادات مسجلة.")
 
-        bom_recipe = db["bom"][prod_model]
-        can_produce = True
-        missing_materials = []
-
-        for mat, req in bom_recipe.items():
-            total_req = req * prod_count
-            available = db["inventory"].get(mat, 0.0)
-            if available < total_req:
-                can_produce = False
-                missing_materials.append(
-                    f"{mat} (المطلوب: {total_req} | المتوفر: {available})"
-                )
-
-        if not can_produce:
-            st.error(
-                "⚠️ لا يمكن إتمام الإنتاج لنقص المواد الخام التالية في المخزن:"
-            )
-            for m in missing_materials:
-                st.write(f"- {m}")
-        else:
-            st.success("✅ جميع المواد الخام متوفرة وكافية للإنتاج.")
-            if st.button(
-                "🚀 تأكيد الإنتاج وخصم المواد الخام",
-                type="primary",
-                key="btn_confirm_prod_unique",
-            ):
-                for mat, req in bom_recipe.items():
-                    db["inventory"][mat] -= req * prod_count
-                db["finished_goods"][prod_model] = (
-                    db["finished_goods"].get(prod_model, 0) + prod_count
-                )
-                db["production_history"].append({
-                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "model": prod_model,
-                    "qty": prod_count,
-                })
-                save_data(db)
-                st.success("تم الإنتاج بنجاح وتحديث أرصدة المخزن!")
-                st.rerun()
-
-# -------------------------------------------------------------
 # 4. الوكلاء والديون
-# -------------------------------------------------------------
 with tabs[3]:
-    st.markdown("### 🤝 إدارة الوكلاء والحسابات والديون")
-    sub_t1, sub_t2 = st.tabs(["إضافة وكيل جديد", "كشف حساب وتسديدات"])
+    st.markdown("### 🤝 الوكلاء والديون")
+    a_name = st.text_input("اسم الوكيل / المحل:", key="ag_n_unique")
+    a_debt = st.number_input(
+        "الدين السابق (إن وجد):", min_value=0.0, key="ag_d_unique"
+    )
+    if st.button("➕ حفظ الوكيل", type="primary", key="btn_save_agent_unique"):
+        if a_name:
+            db["agents"][a_name] = {"debt": a_debt, "transactions": []}
+            save_data(db)
+            st.success("تم حفظ الوكيل!")
+            st.rerun()
 
-    with sub_t1:
-        agent_name = st.text_input(
-            "اسم الوكيل / المحل:", key="input_agent_name_unique"
-        )
-        agent_phone = st.text_input(
-            "رقم الهاتف:", key="input_agent_phone_unique"
-        )
-        initial_debt = st.number_input(
-            "الدين أو الرصيد السابق (إن وجدت):",
-            min_value=0.0,
-            step=10000.0,
-            key="input_agent_debt_unique",
-        )
-
-        if st.button(
-            "➕ حفظ الوكيل", type="primary", key="btn_save_agent_unique"
-        ):
-            if agent_name:
-                db["agents"][agent_name] = {
-                    "phone": agent_phone,
-                    "debt": initial_debt,
-                    "transactions": [],
-                }
-                save_data(db)
-                st.success("تم إضافة الوكيل بنجاح!")
-                st.rerun()
-            else:
-                st.warning("يرجى إدخال اسم الوكيل.")
-
-    with sub_t2:
-        if db["agents"]:
-            selected_agent = st.selectbox(
-                "اختر الوكيل:",
-                list(db["agents"].keys()),
-                key="select_agent_for_pay_unique",
-            )
-            ag_data = db["agents"][selected_agent]
-            st.info(f"الذمة المالية الحالية على الوكيل: **{ag_data['debt']:,} د.ع**")
-
-            pay_amt = st.number_input(
-                "مبلغ التسديد الواصل:",
-                min_value=0.0,
-                step=10000.0,
-                key="input_pay_amt_unique",
-            )
-            if st.button(
-                "💵 تثبيت التسديد وإصدار وصل قبض",
-                type="primary",
-                key="btn_confirm_pay_unique",
-            ):
-                ag_data["debt"] -= pay_amt
-                receipt_no = db["receipt_counter"]
-                db["receipt_counter"] += 1
-
-                ag_data["transactions"].append({
-                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "type": "تسديد",
-                    "amount": pay_amt,
-                    "balance": ag_data["debt"],
-                })
-                save_data(db)
-                st.success(
-                    f"تم تسجيل التسديد بنجاح! الرصيد المتبقي: {ag_data['debt']:,} د.ع"
-                )
-
-                st.markdown(
-                    f"""
-                <div style="background: #ffffff; color: #1e293b; padding: 20px; border-radius: 10px; border-top: 5px solid #059669; margin-top: 15px; direction: rtl;">
-                    <h3>وصل قبض نقدي #{receipt_no}</h3>
-                    <p><b>التاريخ:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
-                    <p><b>اسم الوكيل:</b> {selected_agent}</p>
-                    <p><b>المبلغ الواصل:</b> {pay_amt:,} د.ع</p>
-                    <p><b>المتبقي بالذمة:</b> {ag_data['debt']:,} د.ع</p>
-                </div>
-                """,
-                    unsafe_allow_html=True,
-                )
-        else:
-            st.info("لا يوجد وكلاء مسجلون.")
-
-# -------------------------------------------------------------
-# 5. المبيعات والفواتير
-# -------------------------------------------------------------
+# 5. المبيعات والفواتير والوصلين
 with tabs[4]:
-    st.markdown("### 🛒 نقطة بيع البرادات وإصدار الفواتير")
-
-    buyer_type = st.radio(
+    st.markdown("### 🛒 نقطة بيع البرادات وإصدار الوثائق")
+    b_type = st.radio(
         "نوع المشتري:",
         ["عميل مباشر", "وكيل مسجل"],
         horizontal=True,
-        key="radio_buyer_type_unique",
+        key="b_type_unique",
     )
 
-    buyer_name = ""
-    payment_method = "مباشر (نقداً)"
-    if buyer_type == "عميل مباشر":
-        buyer_name = st.text_input(
-            "اسم العميل المباشر:", key="input_direct_buyer_name_unique"
-        )
-        payment_method = st.selectbox(
-            "طريقة البيع:",
-            ["مباشر (نقداً)", "أقساط"],
-            key="select_payment_method_unique",
-        )
+    buyer = ""
+    if b_type == "عميل مباشر":
+        buyer = st.text_input("اسم العميل:", key="dir_buyer_unique")
     else:
         if db["agents"]:
-            buyer_name = st.selectbox(
-                "اختر الوكيل:",
-                list(db["agents"].keys()),
-                key="select_buyer_agent_name_unique",
+            buyer = st.selectbox(
+                "اختر الوكيل:", list(db["agents"].keys()), key="sel_ag_sale_unique"
             )
-        else:
-            st.warning("لا توجد وكلاء مسجلين.")
 
-    st.markdown("#### تحديد المنتجات المباعة:")
-    cart_items = []
-    total_invoice = 0
+    pay_method = st.selectbox(
+        "طريقة البيع:", ["مباشر (نقداً)", "آجل", "أقساط"], key="pay_method_unique"
+    )
 
+    cart = []
+    tot_inv = 0
     if db["finished_goods"]:
-        for model, stock in db["finished_goods"].items():
+        for m, stock in db["finished_goods"].items():
             c1, c2, c3 = st.columns([2, 1, 1])
             with c1:
-                st.write(f"**{model}** (المتوفر بالمخزن: {stock})")
+                st.write(f"**{m}** (المتوفر: {stock})")
             with c2:
                 q = st.number_input(
-                    "العدد:",
-                    min_value=0,
-                    max_value=max(0, stock),
-                    key=f"sale_qty_{model}_unique",
+                    "العدد:", min_value=0, max_value=stock, key=f"q_{m}_unique"
                 )
             with c3:
                 p = st.number_input(
-                    "السعر للقطعة:",
-                    min_value=0.0,
-                    key=f"sale_price_{model}_unique",
+                    "السعر:", min_value=0.0, key=f"p_{m}_unique"
                 )
-
             if q > 0:
                 t = q * p
-                total_invoice += t
-                cart_items.append(
-                    {"model": model, "qty": q, "price": p, "total": t}
-                )
+                tot_inv += t
+                cart.append({"model": m, "qty": q, "price": p, "total": t})
 
-        st.markdown(f"#### الإجمالي الكلي للفاتورة: `{total_invoice:,}` د.ع")
+        st.markdown(f"#### الإجمالي الكلي: `{tot_inv:,}` د.ع")
+        paid_now = st.number_input(
+            "المبلغ المدفوع الآن:",
+            min_value=0.0,
+            max_value=tot_inv,
+            key="paid_now_unique",
+        )
+        remaining = tot_inv - paid_now
 
         if st.button(
-            "📄 إتمام البيع وإصدار قائمة الحساب",
+            "📄 إتمام البيع وإصدار الوثائق",
             type="primary",
             key="btn_complete_sale_unique",
         ):
-            if buyer_name and cart_items:
-                receipt_no = db["receipt_counter"]
+            if buyer and cart:
+                r_no = db["receipt_counter"]
                 db["receipt_counter"] += 1
 
-                for item in cart_items:
+                for item in cart:
                     db["finished_goods"][item["model"]] -= item["qty"]
 
-                if buyer_type == "وكيل مسجل":
-                    db["agents"][buyer_name]["debt"] += total_invoice
-                    db["agents"][buyer_name]["transactions"].append({
-                        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        "type": f"شراء بضاعة ({payment_method})",
-                        "amount": total_invoice,
-                        "balance": db["agents"][buyer_name]["debt"],
-                    })
+                prev_debt = 0
+                if b_type == "وكيل مسجل":
+                    prev_debt = db["agents"][buyer]["debt"]
+                    db["agents"][buyer]["debt"] += remaining
 
-                db["sales_history"].append({
-                    "receipt_no": receipt_no,
-                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "buyer": buyer_name,
-                    "type": f"{buyer_type} - {payment_method}",
-                    "total": total_invoice,
-                })
                 save_data(db)
+                st.success("تم إتمام البيع بنجاح!")
 
-                st.success("تم إتمام عملية البيع بنجاح وتحديث السجلات!")
-
-                invoice_rows = "".join(
+                # بناء كود الوصلين (HTML جاهز للتحميل والطباعة كـ PDF)
+                rows_html = "".join(
                     [
-                        f"<tr><td>{i['model']}</td><td>{i['qty']}</td><td>{i['price']:,} د.ع</td><td><b>{i['total']:,} د.ع</b></td></tr>"
-                        for i in cart_items
+                        f"<tr><td>{i['model']}</td><td>{i['qty']}</td><td>{i['price']:,}</td><td><b>{i['total']:,}</b></td></tr>"
+                        for i in cart
                     ]
                 )
-                st.markdown(
-                    f"""
-                <div style="background: #ffffff; color: #1e293b; padding: 25px; border-radius: 12px; border-top: 6px solid #0284c7; margin-top: 20px; direction: rtl;">
-                    <h3>قائمة حساب / مبيعات #{receipt_no}</h3>
-                    <p><b>اسم المشتري:</b> {buyer_name} ({buyer_type} - {payment_method})</p>
-                    <p><b>التاريخ:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
-                    <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
-                        <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;"><th style="padding: 8px; text-align: right;">المنتج</th><th style="padding: 8px; text-align: right;">العدد</th><th style="padding: 8px; text-align: right;">السعر المفرد</th><th style="padding: 8px; text-align: right;">الإجمالي</th></tr>
-                        {invoice_rows}
-                    </table>
-                    <h4 style="text-align: left; margin-top: 15px; color: #059669;">المبلغ الإجمالي: {total_invoice:,} د.ع</h4>
-                </div>
-                """,
-                    unsafe_allow_html=True,
+
+                # 1. قائمة الحسابات
+                invoice_html = f"""
+                <!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>قائمة حسابات #{r_no}</title>
+                <style>body{{font-family:Tahoma; padding:20px;}} .card{{background:#fff; padding:20px; border-radius:10px; border-top:5px solid #0284c7; max-width:600px; margin:auto;}} table{{width:100%; border-collapse:collapse; margin-top:15px;}} th,td{{padding:8px; border-bottom:1px solid #ddd; text-align:right;}}</style>
+                </head><body><div class="card">
+                <h2>معمل الرافدين للبرادات</h2>
+                <h3>قائمة حسابات #{r_no}</h3>
+                <p><b>الاسم:</b> {buyer} ({b_type} - {pay_method})</p>
+                <p><b>التاريخ:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
+                <table><tr><th>المنتج</th><th>العدد</th><th>السعر</th><th>الإجمالي</th></tr>{rows_html}</table>
+                <p><b>الإجمالي:</b> {tot_inv:,} د.ع</p>
+                <p><b>المدفوع:</b> {paid_now:,} د.ع</p>
+                <p><b>المتبقي:</b> {remaining:,} د.ع</p>
+                </div></body></html>
+                """
+
+                # 2. وصل القبض
+                receipt_html = f"""
+                <!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>وصل قبض #{r_no}</title>
+                <style>body{{font-family:Tahoma; padding:20px;}} .card{{background:#fff; padding:20px; border-radius:10px; border-top:5px solid #059669; max-width:600px; margin:auto;}}</style>
+                </head><body><div class="card">
+                <h2>معمل الرافدين للبرادات</h2>
+                <h3>وصل قبض نقدي #{r_no}</h3>
+                <p><b>الاسم:</b> {buyer}</p>
+                <p><b>التاريخ:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
+                <p><b>الرصيد / الدين السابق:</b> {prev_debt:,} د.ع</p>
+                <p><b>المبلغ المسدد الآن:</b> {paid_now:,} د.ع</p>
+                <p><b>المتبقي في الذمة:</b> {prev_debt + remaining:,} د.ع</p>
+                </div></body></html>
+                """
+
+                st.download_button(
+                    "📥 تحميل قائمة الحسابات (HTML / PDF)",
+                    data=invoice_html.encode("utf-8"),
+                    file_name=f"قائمة_حسابات_{r_no}.html",
+                    mime="text/html",
+                )
+                st.download_button(
+                    "📥 تحميل وصل القبض (HTML / PDF)",
+                    data=receipt_html.encode("utf-8"),
+                    file_name=f"وصل_قبض_{r_no}.html",
+                    mime="text/html",
                 )
             else:
                 st.warning("يرجى إدخال اسم المشتري وتحديد منتج واحد على الأقل.")
     else:
-        st.info("لا توجد برادات جاهزة بالمخزن حالياً للبيع.")
-
-# -------------------------------------------------------------
-# 6. التقارير المالية
-# -------------------------------------------------------------
-with tabs[5]:
-    st.markdown("### 📊 التقارير العامة وسجل المبيعات")
-    if db["sales_history"]:
-        st.dataframe(pd.DataFrame(db["sales_history"]), use_container_width=True)
-    else:
-        st.info("لا توجد مبيعات مسجلة حتى الآن.")
+        st.info("لا توجد برادات جاهزة بالمخزن.")
