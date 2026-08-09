@@ -67,6 +67,14 @@ st.markdown(
         border: none !important;
         color: white !important;
     }
+    .printable-receipt {
+        background-color: #ffffff;
+        color: #000000;
+        padding: 20px;
+        border-radius: 10px;
+        direction: rtl;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
     #MainMenu, footer, header {visibility: hidden;}
 </style>
 """,
@@ -76,7 +84,6 @@ st.markdown(
 DATA_FILE = "multi_factory_data.json"
 
 
-# --- الهيكل الافتراضي لمعمل جديد ---
 def get_default_factory_data(factory_name, admin_user, admin_pass):
     return {
         "info": {"factory_name": factory_name},
@@ -105,6 +112,7 @@ def get_default_factory_data(factory_name, admin_user, admin_pass):
             "بوري ربع 1.5m": 50.0,
             "طبقة وربع بليت": 50.0,
         },
+        "material_requests": [],
         "finished_goods": {"براد حنفية واحدة": 0, "براد حنفيتين": 0},
         "agents": {},
         "bom": {
@@ -165,6 +173,8 @@ def load_all_factories():
                         f_data["agents"] = {}
                     if "production_history" not in f_data:
                         f_data["production_history"] = []
+                    if "material_requests" not in f_data:
+                        f_data["material_requests"] = []
                 return data
         except Exception:
             return {}
@@ -263,7 +273,7 @@ if not st.session_state.authenticated:
                         "تم إنشاء المعمل بنجاح! انتقل لتبويب تسجيل الدخول."
                     )
             else:
-                    st.warning("يرجى ملء جميع الحقول المطلوبة.")
+                st.warning("يرجى ملء جميع الحقول المطلوبة.")
 
     st.stop()
 
@@ -271,7 +281,6 @@ if not st.session_state.authenticated:
 current_factory_name = st.session_state.factory_key
 factory_data = all_factories[current_factory_name]
 
-# الشريط الع العلوي لمعلومات المستخدم والمعمل
 top_col1, top_col2 = st.columns([3, 1])
 with top_col1:
     st.markdown(
@@ -285,7 +294,7 @@ with top_col2:
 
 st.divider()
 
-# --- قائمة التنقل المتجاوبة (Responsive Selectbox) ---
+# --- قائمة التنقل المتجاوبة ---
 if st.session_state.role == "admin":
     available_tabs = [
         "📊 الرئيسية والمالية",
@@ -293,6 +302,7 @@ if st.session_state.role == "admin":
         "🛒 بيع / قائمة حساب",
         "🏭 تسجيل إنتاج برادات",
         "📦 إدارة المخزون الخام",
+        "📥 طلبات ونقص المواد",
         "👥 الموظفين والحسابات",
         "📄 تصدير تقارير Excel",
         "➕ إضافة مادة خام",
@@ -304,6 +314,7 @@ else:
         "🤝 الديون والوكلاء",
         "🏭 تسجيل إنتاج برادات",
         "📦 إدارة المخزون الخام",
+        "📥 طلب ونقص المواد",
     ]
 
 selected_tab = st.selectbox(
@@ -338,12 +349,12 @@ if selected_tab == "📊 الرئيسية والمالية":
         st.info("لا توجد مبيعات مسجلة حتى الآن.")
 
 # -------------------------------------------------------------
-# 2️⃣ الديون والوكلاء
+# 2️⃣ الديون والوكلاء (مع طباعة وصل القبض وكشف الحساب)
 # -------------------------------------------------------------
 elif selected_tab == "🤝 الديون والوكلاء":
     st.markdown("### 💳 إدارة الديون والوكلاء")
     sub_t1, sub_t2, sub_t3 = st.tabs(
-        ["➕ إضافة وكيل", "💵 تسديد دين", "📜 كشف حساب"]
+        ["➕ إضافة وكيل", "💵 تسديد دين ووصل قبض", "📜 كشف حساب وطباعة"]
     )
 
     with sub_t1:
@@ -363,7 +374,7 @@ elif selected_tab == "🤝 الديون والوكلاء":
                     "transactions": [],
                 }
                 save_all_factories(all_factories)
-                st.success("تم إضافة الوكيل بنجاح!")
+                st.toast("✅ تم إضافة الوكيل بنجاح!", icon="🎉")
                 st.rerun()
             else:
                 st.warning("اسم الوكيل موجود مسبقاً أو فارغ.")
@@ -393,19 +404,49 @@ elif selected_tab == "🤝 الديون والوكلاء":
                 factory_data["agents"][selected_ag]["debt"] = new_debt
                 receipt_no = factory_data.get("receipt_counter", 1001)
 
+                payment_record = {
+                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "type": "تسديد دفعة",
+                    "amount": pay_amount,
+                    "balance": new_debt,
+                    "note": f"وصل قبض #{receipt_no}",
+                }
                 factory_data["agents"][selected_ag].setdefault(
                     "transactions", []
-                ).append({
-                    "date": datetime.now().strftime("%Y-%m-%d"),
-                    "type": "تسديد دفعة",
-                    "amount": -pay_amount,
-                    "balance": new_debt,
-                    "note": f"وصل #{receipt_no}",
-                })
+                ).append(payment_record)
                 factory_data["receipt_counter"] = receipt_no + 1
                 save_all_factories(all_factories)
-                st.success("تم تسديد المبلغ وتحديث رصيد الذمة بنجاح!")
-                st.rerun()
+
+                st.toast(
+                    "💵 تم تسجيل التسديد بنجاح وإصدار وصل القبض!", icon="✅"
+                )
+                st.success("تم تسجيل عملية التسديد بنجاح!")
+
+                # معاينة وصل القبض الجاهز للطباعة
+                st.markdown("---")
+                st.markdown("#### 📄 معاينة وصل القبض للطباعة:")
+                receipt_html = f"""
+                <div class="printable-receipt">
+                    <h3 style="text-align: center; margin-bottom: 5px;">{current_factory_name}</h3>
+                    <h4 style="text-align: center; color: #555; margin-top: 0;">وصل قبض نقدي</h4>
+                    <hr>
+                    <p><b>رقم الوصل:</b> #{receipt_no}</p>
+                    <p><b>التاريخ:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
+                    <p><b>استلمنا من السيد/المحل:</b> {selected_ag}</p>
+                    <p><b>المبلغ الواصل:</b> <span style="font-size: 1.2em; color: #0d6efd;"><b>{pay_amount:,} د.ع</b></span></p>
+                    <p><b>الرصيد المتبقي بالذمة:</b> {new_debt:,} د.ع</p>
+                    <br>
+                    <div style="display: flex; justify-content: space-between; margin-top: 30px;">
+                        <p>توقيع المستلم: ........................</p>
+                        <p>ختم المعمل: ........................</p>
+                    </div>
+                </div>
+                """
+                st.markdown(receipt_html, unsafe_allow_html=True)
+                st.info(
+                    "💡 يمكنك طباعة هذا الوصل مباشرة بالضغط على (Ctrl + P) في"
+                    " المتصفح."
+                )
         else:
             st.info("لا يوجد وكلاء مسجلون بعد.")
 
@@ -422,6 +463,40 @@ elif selected_tab == "🤝 الديون والوكلاء":
             trans_list = ag_info.get("transactions", [])
             if trans_list:
                 st.dataframe(pd.DataFrame(trans_list), use_container_width=True)
+
+                # زر معاينة كشف الحساب الكامل للطباعة
+                if st.button("🖨️ تجهيز كشف الحساب للطباعة"):
+                    statement_html = f"""
+                    <div class="printable-receipt">
+                        <h3 style="text-align: center;">{current_factory_name}</h3>
+                        <h4 style="text-align: center; color: #555;">كشف حساب تفصيلي للوكيل: {sel_ag_view}</h4>
+                        <hr>
+                        <p><b>رقم الهاتف:</b> {ag_info.get('phone', 'غير متوفر')}</p>
+                        <p><b>إجمالي الدين الحالي:</b> <span style="color: red;">{ag_info.get('debt', 0):,} د.ع</span></p>
+                        <table border="1" style="width: 100%; border-collapse: collapse; text-align: center; margin-top: 10px;">
+                            <tr style="background-color: #f2f2f2;">
+                                <th style="padding: 8px;">التاريخ</th>
+                                <th style="padding: 8px;">الحركة</th>
+                                <th style="padding: 8px;">المبلغ (د.ع)</th>
+                                <th style="padding: 8px;">الرصيد المتبقي</th>
+                                <th style="padding: 8px;">ملاحظات</th>
+                            </tr>
+                    """
+                    for t in trans_list:
+                        statement_html += f"""
+                            <tr>
+                                <td style="padding: 6px;">{t.get('date', '')}</td>
+                                <td style="padding: 6px;">{t.get('type', '')}</td>
+                                <td style="padding: 6px;">{t.get('amount', 0):,}</td>
+                                <td style="padding: 6px;">{t.get('balance', 0):,}</td>
+                                <td style="padding: 6px;">{t.get('note', '')}</td>
+                            </tr>
+                        """
+                    statement_html += """
+                        </table>
+                    </div>
+                    """
+                    st.markdown(statement_html, unsafe_allow_html=True)
             else:
                 st.info("لا توجد حركات مالية مسجلة لهذا الوكيل.")
         else:
@@ -493,6 +568,7 @@ elif selected_tab == "🛒 بيع / قائمة حساب":
             for item in selected_items:
                 factory_data["finished_goods"][item["model"]] -= item["count"]
 
+            # إذا كان البيع لوكيل، يتم تسجيله كدين أو مبيعات حسب النظام
             factory_data["sales_history"].append({
                 "receipt_no": receipt_no,
                 "date": datetime.now().strftime("%Y-%m-%d"),
@@ -502,13 +578,58 @@ elif selected_tab == "🛒 بيع / قائمة حساب":
             })
             factory_data["receipt_counter"] = receipt_no + 1
             save_all_factories(all_factories)
+
+            st.toast("🛒 تمت عملية البيع بنجاح!", icon="🎉")
             st.success("تم إتمام عملية البيع وتحديث المخزون بنجاح!")
-            st.rerun()
+
+            # معاينة قائمة الحساب للطباعة
+            invoice_html = f"""
+            <div class="printable-receipt">
+                <h3 style="text-align: center;">{current_factory_name}</h3>
+                <h4 style="text-align: center; color: #555;">قائمة مبيعات / حساب</h4>
+                <hr>
+                <p><b>رقم القائمة:</b> #{receipt_no}</p>
+                <p><b>التاريخ:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
+                <p><b>اسم المشتري / الوكيل:</b> {customer_name}</p>
+                <table border="1" style="width: 100%; border-collapse: collapse; text-align: center; margin-top: 10px;">
+                    <tr style="background-color: #f2f2f2;">
+                        <th style="padding: 8px;">المنتج</th>
+                        <th style="padding: 8px;">العدد</th>
+                        <th style="padding: 8px;">السعر المفرد</th>
+                        <th style="padding: 8px;">الإجمالي</th>
+                    </tr>
+            """
+            for itm in selected_items:
+                invoice_html += f"""
+                    <tr>
+                        <td style="padding: 6px;">{itm['model']}</td>
+                        <td style="padding: 6px;">{itm['count']}</td>
+                        <td style="padding: 6px;">{itm['price']:,}</td>
+                        <td style="padding: 6px;">{itm['total']:,}</td>
+                    </tr>
+                """
+            invoice_html += f"""
+                </table>
+                <h3 style="text-align: left; margin-top: 15px;">المبلغ الإجمالي الكلي: {grand_total:,} د.ع</h3>
+            </div>
+            """
+            st.markdown(invoice_html, unsafe_allow_html=True)
         else:
             st.warning("يرجى إدخال اسم المشتري وتحديد منتج واحد على الأقل.")
 
 # -------------------------------------------------------------
 # 4️⃣ تسجيل إنتاج برادات
+# -------------------------------------------------------------
+elif selected_tab == "📦 إدارة المخزون الخام":
+    st.markdown("### 📦 أرصدة المواد الخام الحالية بالمخزن")
+    inv_df = pd.DataFrame(
+        list(factory_data["inventory"].items()),
+        columns=["المادة الخام", "الكمية المتاحة"],
+    )
+    st.dataframe(inv_df, use_container_width=True)
+
+# -------------------------------------------------------------
+# 5️⃣ إدارة المخزون الخام
 # -------------------------------------------------------------
 elif selected_tab == "🏭 تسجيل إنتاج برادات":
     st.markdown("### 🏭 تسجيل وجبة إنتاج جديدة")
@@ -562,22 +683,60 @@ elif selected_tab == "🏭 تسجيل إنتاج برادات":
                 "qty": produce_qty,
             })
             save_all_factories(all_factories)
+            st.toast(
+                "🚀 تم إتمام عملية الإنتاج وتحديث المخزون بنجاح!", icon="✅"
+            )
             st.success("✅ تم تسجيل الإنتاج وإضافته للمخزون بنجاح!")
             st.rerun()
 
 # -------------------------------------------------------------
-# 5️⃣ إدارة المخزون الخام
+# 6️⃣ طلبات ونقص المواد (زيادة المواد عند نفادها)
 # -------------------------------------------------------------
-elif selected_tab == "📦 إدارة المخزون الخام":
-    st.markdown("### 📦 أرصدة المواد الخام الحالية بالمخزن")
-    inv_df = pd.DataFrame(
-        list(factory_data["inventory"].items()),
-        columns=["المادة الخام", "الكمية المتاحة"],
+elif (
+    selected_tab == "📥 طلبات ونقص المواد"
+    or selected_tab == "📥 طلب ونقص المواد"
+):
+    st.markdown("### 📥 قسم نقص المواد الخام وطلبات التوريد")
+    st.info(
+        "هنا يمكنك رفع طلب بتوفير مواد خام ناقصة للمخزن أو إضافتها بشكل مباشر إذا"
+        " وصلت شحنة جديدة."
     )
-    st.dataframe(inv_df, use_container_width=True)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("#### 📝 إرسال طلب نقص مادة جديدة")
+        req_material = st.selectbox(
+            "اختر المادة الناقصة:",
+            list(factory_data["inventory"].keys()),
+            key="req_mat_select",
+        )
+        req_qty = st.number_input(
+            "الكمية المطلوبة:", min_value=1.0, value=50.0, key="req_mat_qty"
+        )
+        req_note = st.text_input("ملاحظات إضافية:", key="req_mat_note")
+
+        if st.button("📤 إرسال طلب التوريد", key="send_req_btn"):
+            factory_data.setdefault("material_requests", []).append({
+                "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "material": req_material,
+                "qty": req_qty,
+                "note": req_note,
+                "status": "قيد الانتظار",
+            })
+            save_all_factories(all_factories)
+            st.toast("📤 تم إرسال طلب المادة بنجاح!", icon="🔔")
+            st.success("تم إرسال الطلب بنجاح للإدارة.")
+
+    with col2:
+        st.markdown("#### 📋 سجل الطلبات السابقة")
+        requests_list = factory_data.get("material_requests", [])
+        if requests_list:
+            st.dataframe(pd.DataFrame(requests_list), use_container_width=True)
+        else:
+            st.info("لا توجد طلبات توريد مسجلة.")
 
 # -------------------------------------------------------------
-# 6️⃣ الموظفين والحسابات
+# 7️⃣ الموظفين والحسابات
 # -------------------------------------------------------------
 elif selected_tab == "👥 الموظفين والحسابات":
     st.markdown("### 👥 إدارة المستخدمين وصلاحيات المعمل")
@@ -589,7 +748,7 @@ elif selected_tab == "👥 الموظفين والحسابات":
         st.info("لا توجد حسابات مسجلة.")
 
 # -------------------------------------------------------------
-# 7️⃣ تصدير تقارير Excel
+# 8️⃣ تصدير تقارير Excel
 # -------------------------------------------------------------
 elif selected_tab == "📄 تصدير تقارير Excel":
     st.markdown("### 📄 تصدير البيانات والتقارير")
@@ -613,31 +772,32 @@ elif selected_tab == "📄 تصدير تقارير Excel":
         st.info("لا توجد مبيعات كافية لتصديرها في تقرير Excel.")
 
 # -------------------------------------------------------------
-# 8️⃣ إضافة مادة خام
+# 9️⃣ إضافة مادة خام
 # -------------------------------------------------------------
 elif selected_tab == "➕ إضافة مادة خام":
-    st.markdown("### ➕ إضافة مادة خام جديدة أو زيادة رصيد")
+    st.markdown("### ➕ إضافة مادة خام جديدة أو زيادة رصيد الشحنات")
     new_mat_name = st.text_input(
         "اسم المادة الخام:", key="input_new_material_name"
     )
     add_qty = st.number_input(
-        "الكمية المراد إضافتها:", min_value=0.0, key="input_add_material_qty"
+        "الكمية الواردة للمخزن:", min_value=0.0, key="input_add_material_qty"
     )
 
     if st.button(
-        "حفظ وتحديث المخزون", type="primary", key="btn_save_new_material"
+        "حفظ وتحديث المخزن", type="primary", key="btn_save_new_material"
     ):
         if new_mat_name:
             curr = factory_data["inventory"].get(new_mat_name, 0.0)
             factory_data["inventory"][new_mat_name] = curr + add_qty
             save_all_factories(all_factories)
+            st.toast("📦 تم تحديث المخزون وإضافة المواد بنجاح!", icon="✅")
             st.success(f"تم تحديث مخزون المادة '{new_mat_name}' بنجاح!")
             st.rerun()
         else:
             st.warning("يرجى كتابة اسم المادة الخام.")
 
 # -------------------------------------------------------------
-# 9️⃣ أنواع البرادات (BOM)
+# 🔟 أنواع البرادات (BOM)
 # -------------------------------------------------------------
 elif selected_tab == "🛠️ أنواع البرادات (BOM)":
     st.markdown(
