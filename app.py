@@ -11,8 +11,69 @@ import streamlit as st
 
 DATA_FILE = "multi_factory_data.json"
 
+# --- 0. دالة تحويل الأرقام إلى نصوص عربية (تفقيط لسند القبض) ---
+def number_to_arabic_words(num):
+    if num == 0:
+        return "صفر"
+    
+    ones = ["", "واحد", "اثنان", "ثلاثة", "أربعة", "خمسة", "ستة", "سبعة", "ثمانية", "تسعة"]
+    teens = ["عشرة", "أحد عشر", "اثنا عشر", "ثلاثة عشر", "أربعة عشر", "خمسة عشر", "ستة عشر", "سبعة عشر", "ثمانية عشر", "تسعة عشر"]
+    tens = ["", "عشرة", "عشرون", "ثلاثون", "أربعون", "خمسون", "ستون", "سبعون", "ثمانون", "تسعون"]
+    hundreds = ["", "مائة", "مائتان", "ثلاثمائة", "أربعمائة", "خمسمائة", "ستمائة", "سبعمائة", "ثمانمائة", "تسعمائة"]
+    
+    def convert_group(n):
+        res = []
+        h = n // 100
+        rem = n % 100
+        if h > 0:
+            res.append(hundreds[h])
+        if rem > 0:
+            if rem < 10:
+                res.append(ones[rem])
+            elif rem < 20:
+                res.append(teens[rem - 10])
+            else:
+                t = rem // 10
+                u = rem % 10
+                if u > 0:
+                    res.append(ones[u] + " و " + tens[t])
+                else:
+                    res.append(tens[t])
+        return " و ".join(res)
+    
+    parts = []
+    
+    b = num // 1000000000
+    if b > 0:
+        if b == 1: parts.append("مليار")
+        elif b == 2: parts.append("ملياران")
+        elif 3 <= b <= 10: parts.append(convert_group(b) + " مليارات")
+        else: parts.append(convert_group(b) + " مليار")
+    num %= 1000000000
+    
+    m = num // 1000000
+    if m > 0:
+        if m == 1: parts.append("مليون")
+        elif m == 2: parts.append("مليونان")
+        elif 3 <= m <= 10: parts.append(convert_group(m) + " ملايين")
+        else: parts.append(convert_group(m) + " مليون")
+    num %= 1000000
+    
+    k = num // 1000
+    if k > 0:
+        if k == 1: parts.append("ألف")
+        elif k == 2: parts.append("ألفان")
+        elif 3 <= k <= 10: parts.append(convert_group(k) + " آلاف")
+        else: parts.append(convert_group(k) + " ألف")
+    num %= 1000
+    
+    if num > 0:
+        parts.append(convert_group(num))
+        
+    return " و ".join(parts).strip()
 
-# --- 1. إدارة ملف البيانات والتخزين الدائم للنظام (بقيم صفرية ونظيفة) ---
+
+# --- 1. إدارة ملف البيانات والتخزين الدائم للنظام ---
 def get_default_factory_data(factory_name, admin_user, admin_pass):
     return {
         "info": {"factory_name": factory_name},
@@ -236,48 +297,74 @@ def generate_receipt_pdf(
 
 
 def generate_payment_pdf(
-    factory_name, agent_name, date_str, amount, remaining_debt, receipt_no
+    factory_name, agent_name, date_str, amount, remaining_debt, old_debt, receipt_no, note=""
 ):
     font_path = ensure_arabic_font()
-    pdf = FPDF()
+    # استخدام مقاس A5 بالعرض (Landscape) لمحاكاة شكل تصميم وصل القبض المرفق
+    pdf = FPDF(orientation="L", unit="mm", format="A5")
     pdf.add_page()
 
     if os.path.exists(font_path):
         pdf.add_font("Amiri", "", font_path)
-        pdf.set_font("Amiri", "", 20)
+        pdf.set_font("Amiri", "", 24)
     else:
-        pdf.set_font("Arial", "B", 16)
+        pdf.set_font("Arial", "B", 20)
 
-    pdf.set_text_color(30, 41, 59)
-    pdf.cell(
-        0, 10, ar("معمل الرافدين لانتاج برادات الماء"), ln=True, align="C"
-    )
+    pdf.set_text_color(0, 0, 0)
+    
+    # عنوان السند
+    pdf.set_y(15)
+    pdf.cell(0, 15, ar("سند قبض"), ln=True, align="C")
+    pdf.ln(5)
 
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 14)
-    pdf.set_text_color(100, 116, 139)
-    pdf.cell(0, 8, ar("وصل قبض"), ln=True, align="C")
-    pdf.ln(8)
-
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
-    pdf.set_text_color(51, 65, 85)
-    pdf.cell(0, 6, ar(f"رقم الوصل: #{receipt_no}"), ln=True, align="R")
-    pdf.cell(0, 6, ar(f"التاريخ: {date_str}"), ln=True, align="R")
-    pdf.cell(0, 6, ar(f"استلمنا من السيد/الوكيل: {agent_name}"), ln=True, align="R")
-    pdf.cell(0, 6, ar(f"مبلغ وقدره: {amount:,} دينار عراقي"), ln=True, align="R")
-    pdf.cell(
-        0,
-        6,
-        ar(
-            f"الذمة المتبقية للوكيل بعد التسديد: {remaining_debt:,} دينار عراقي"
-        ),
-        ln=True,
-        align="R",
-    )
-    pdf.ln(20)
-
-    pdf.cell(
-        0, 6, ar("توقيع المستلم: .........................."), ln=True, align="L"
-    )
+    # ضبط الخط لتفاصيل الجداول
+    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 12)
+    pdf.set_line_width(0.3)
+    
+    # السطر الأول (رقم المستند / تاريخ المستند)
+    pdf.cell(95, 8, ar("رقم المستند"), border=1, align="C")
+    pdf.cell(95, 8, ar("تاريخ المستند"), border=1, align="C", ln=True)
+    
+    pdf.cell(95, 8, str(receipt_no), border=1, align="C")
+    pdf.cell(95, 8, str(date_str), border=1, align="C", ln=True)
+    pdf.ln(3) 
+    
+    # السطر الثاني (العملة / السيد)
+    pdf.cell(40, 8, ar("العملة"), border=1, align="C")
+    pdf.cell(150, 8, ar("السيد"), border=1, align="C", ln=True)
+    
+    pdf.cell(40, 8, ar("دينار عراقي"), border=1, align="C")
+    pdf.cell(150, 8, ar(agent_name), border=1, align="C", ln=True)
+    pdf.ln(3)
+    
+    # السطر الثالث (المبلغ كتابة / المبلغ)
+    amount_in_words = f"{number_to_arabic_words(int(amount))} دينار عراقي فقط لا غير"
+    pdf.cell(150, 8, ar(amount_in_words), border=1, align="C")
+    pdf.cell(40, 8, f"{amount:,.2f}", border=1, align="C", ln=True)
+    pdf.ln(3)
+    
+    # السطر الرابع (الملاحظات)
+    note_text = f"الملاحظات: {note}" if note else "الملاحظات:"
+    pdf.cell(190, 8, ar(note_text), border=1, align="R", ln=True)
+    pdf.ln(3)
+    
+    # السطر الخامس (الرصيد بعد التسديد / الرصيد السابق)
+    pdf.cell(95, 8, ar("الرصيد بعد التسديد"), border=1, align="C")
+    pdf.cell(95, 8, ar("الرصيد السابق"), border=1, align="C", ln=True)
+    
+    pdf.cell(95, 8, f"{remaining_debt:,.2f}", border=1, align="C")
+    pdf.cell(95, 8, f"{old_debt:,.2f}", border=1, align="C", ln=True)
+    
+    pdf.ln(10)
+    
+    # التوقيع أسفل اليسار
+    pdf.cell(190, 8, ar("توقيع المستلم: .........................."), ln=True, align="L")
+    
+    # رسم الإطار الخارجي (Border Outline) لتأطير المستند بالكامل
+    end_y = pdf.get_y() + 5
+    pdf.set_line_width(0.6)
+    pdf.rect(5, 5, 200, end_y - 5)
+    
     return bytes(pdf.output())
 
 
@@ -570,11 +657,11 @@ with tab_agents:
             pay_amount = st.number_input(
                 "المبلغ المدفوع (المستلم):",
                 min_value=1.0,
-                value=100000.0,
+                value=50000.0,
                 step=10000.0,
             )
             pay_note = st.text_input(
-                "ملاحظات / بيان الدفعة:", value="تسديد دفعة نقداً"
+                "ملاحظات / بيان الدفعة:", value="تم الاستلام من السائق"
             )
 
             if st.button(
@@ -582,9 +669,6 @@ with tab_agents:
                 type="primary",
                 use_container_width=True,
             ):
-                # التعديل الصحيح للتعامل مع الدين بالسالب أو الموجب
-                # إذا كان الدين موجباً يمثل ذمة (خصم الدفعة منه يقلله: current_debt - pay_amount)
-                # وإذا كنت تعتمد النظام السالب، يمكنك ضبط المعادلة هنا لتعود للجمع أو الطرح بحسب رغبتك.
                 new_debt = current_debt - pay_amount
                 factory_data["agents"][selected_ag]["debt"] = new_debt
 
@@ -603,13 +687,16 @@ with tab_agents:
 
                 save_all_factories(all_factories)
 
+                # استدعاء الدالة المحدثة مع تمرير الدين القديم والملاحظات
                 pdf_bytes = generate_payment_pdf(
                     factory_name=current_factory_name,
                     agent_name=selected_ag,
                     date_str=datetime.now().strftime("%Y-%m-%d"),
                     amount=pay_amount,
                     remaining_debt=new_debt,
+                    old_debt=current_debt,
                     receipt_no=receipt_no,
+                    note=pay_note
                 )
 
                 st.success(
@@ -617,9 +704,9 @@ with tab_agents:
                     " د.ع"
                 )
                 st.download_button(
-                    label="📥 تنزيل وصل القبض (PDF)",
+                    label="📥 تنزيل سند القبض (PDF)",
                     data=pdf_bytes,
-                    file_name=f"وصل_قبض_{receipt_no}_{selected_ag}.pdf",
+                    file_name=f"سند_قبض_{receipt_no}_{selected_ag}.pdf",
                     mime="application/pdf",
                     use_container_width=True,
                 )
