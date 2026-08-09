@@ -1,9 +1,1 @@
-streamlit
-pandas
-openpyxl
-fpdf2
-arabic-reshaper
-python-bidi
-requests
 Flask
-xlsxwriter
