@@ -6,7 +6,7 @@ import streamlit as st
 
 # --- إعدادات وتخطيط الصفحة ---
 st.set_page_config(
-    page_title=" - نظام إدارة معمل الرافدين للبرادات",
+    page_title="معاش - نظام إدارة معمل الرافدين للبرادات",
     page_icon="🍏",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -81,7 +81,11 @@ with tabs[0]:
     with c1:
         mat_name = st.text_input("اسم المادة الخام:", key="m_name")
         mat_qty = st.number_input(
-            "الكمية الواردة:", min_value=0.0, step=1.0, key="m_qty"
+            "الكمية الواردة:",
+            min_value=0.0,
+            step=1.0,
+            value=0.0,
+            key="m_qty",
         )
         if st.button(
             "➕ إضافة للمخزن", type="primary", key="btn_add_mat_unique"
@@ -123,7 +127,10 @@ with tabs[1]:
                 key="sel_mat_bom_unique",
             )
             need_q = st.number_input(
-                "الكمية المطلوبة للوحدة:", min_value=0.1, key="need_q_unique"
+                "الكمية المطلوبة للوحدة:",
+                min_value=0.1,
+                value=1.0,
+                key="need_q_unique",
             )
             if st.button(
                 "➕ إضافة مادة للوصفة", key="btn_add_bom_item_unique"
@@ -188,7 +195,10 @@ with tabs[3]:
     st.markdown("### 🤝 الوكلاء والديون")
     a_name = st.text_input("اسم الوكيل / المحل:", key="ag_n_unique")
     a_debt = st.number_input(
-        "الدين السابق (إن وجد):", min_value=0.0, key="ag_d_unique"
+        "الدين السابق (إن وجد):",
+        min_value=0.0,
+        value=0.0,
+        key="ag_d_unique",
     )
     if st.button("➕ حفظ الوكيل", type="primary", key="btn_save_agent_unique"):
         if a_name:
@@ -221,7 +231,7 @@ with tabs[4]:
     )
 
     cart = []
-    tot_inv = 0
+    tot_inv = 0.0
     if db["finished_goods"]:
         for m, stock in db["finished_goods"].items():
             c1, c2, c3 = st.columns([2, 1, 1])
@@ -229,25 +239,36 @@ with tabs[4]:
                 st.write(f"**{m}** (المتوفر: {stock})")
             with c2:
                 q = st.number_input(
-                    "العدد:", min_value=0, max_value=stock, key=f"q_{m}_unique"
+                    "العدد:",
+                    min_value=0,
+                    max_value=stock,
+                    value=0,
+                    key=f"q_{m}_unique",
                 )
             with c3:
                 p = st.number_input(
-                    "السعر:", min_value=0.0, key=f"p_{m}_unique"
+                    "السعر:",
+                    min_value=0.0,
+                    value=0.0,
+                    key=f"p_{m}_unique",
                 )
             if q > 0:
-                t = q * p
+                t = float(q) * float(p)
                 tot_inv += t
-                cart.append({"model": m, "qty": q, "price": p, "total": t})
+                cart.append(
+                    {"model": m, "qty": q, "price": p, "total": t}
+                )
 
-        st.markdown(f"#### الإجمالي الكلي: `{tot_inv:,}` د.ع")
+        st.markdown(f"#### الإجمالي الكلي: `{tot_inv:,.2f}` د.ع")
+        
         paid_now = st.number_input(
             "المبلغ المدفوع الآن:",
             min_value=0.0,
-            max_value=tot_inv,
+            max_value=float(tot_inv),
+            value=0.0,
             key="paid_now_unique",
         )
-        remaining = tot_inv - paid_now
+        remaining = float(tot_inv) - float(paid_now)
 
         if st.button(
             "📄 إتمام البيع وإصدار الوثائق",
@@ -261,18 +282,17 @@ with tabs[4]:
                 for item in cart:
                     db["finished_goods"][item["model"]] -= item["qty"]
 
-                prev_debt = 0
+                prev_debt = 0.0
                 if b_type == "وكيل مسجل":
-                    prev_debt = db["agents"][buyer]["debt"]
-                    db["agents"][buyer]["debt"] += remaining
+                    prev_debt = float(db["agents"][buyer]["debt"])
+                    db["agents"][buyer]["debt"] = prev_debt + remaining
 
                 save_data(db)
                 st.success("تم إتمام البيع بنجاح!")
 
-                # بناء كود الوصلين (HTML جاهز للتحميل والطباعة كـ PDF)
                 rows_html = "".join(
                     [
-                        f"<tr><td>{i['model']}</td><td>{i['qty']}</td><td>{i['price']:,}</td><td><b>{i['total']:,}</b></td></tr>"
+                        f"<tr><td>{i['model']}</td><td>{i['qty']}</td><td>{i['price']:,.2f}</td><td><b>{i['total']:,.2f}</b></td></tr>"
                         for i in cart
                     ]
                 )
@@ -287,9 +307,9 @@ with tabs[4]:
                 <p><b>الاسم:</b> {buyer} ({b_type} - {pay_method})</p>
                 <p><b>التاريخ:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
                 <table><tr><th>المنتج</th><th>العدد</th><th>السعر</th><th>الإجمالي</th></tr>{rows_html}</table>
-                <p><b>الإجمالي:</b> {tot_inv:,} د.ع</p>
-                <p><b>المدفوع:</b> {paid_now:,} د.ع</p>
-                <p><b>المتبقي:</b> {remaining:,} د.ع</p>
+                <p><b>الإجمالي:</b> {tot_inv:,.2f} د.ع</p>
+                <p><b>المدفوع:</b> {paid_now:,.2f} د.ع</p>
+                <p><b>المتبقي:</b> {remaining:,.2f} د.ع</p>
                 </div></body></html>
                 """
 
@@ -302,9 +322,9 @@ with tabs[4]:
                 <h3>وصل قبض نقدي #{r_no}</h3>
                 <p><b>الاسم:</b> {buyer}</p>
                 <p><b>التاريخ:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
-                <p><b>الرصيد / الدين السابق:</b> {prev_debt:,} د.ع</p>
-                <p><b>المبلغ المسدد الآن:</b> {paid_now:,} د.ع</p>
-                <p><b>المتبقي في الذمة:</b> {prev_debt + remaining:,} د.ع</p>
+                <p><b>الرصيد / الدين السابق:</b> {prev_debt:,.2f} د.ع</p>
+                <p><b>المبلغ المسدد الآن:</b> {paid_now:,.2f} د.ع</p>
+                <p><b>المتبقي في الذمة:</b> {prev_debt + remaining:,.2f} د.ع</p>
                 </div></body></html>
                 """
 
