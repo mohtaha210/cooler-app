@@ -67,13 +67,64 @@ st.markdown(
         border: none !important;
         color: white !important;
     }
-    .printable-receipt {
-        background-color: #ffffff;
-        color: #000000;
-        padding: 20px;
-        border-radius: 10px;
+    /* تصميم الوصل والقوائم الاحترافي الجديد */
+    .invoice-card {
+        background: #ffffff;
+        color: #1e293b;
+        padding: 25px;
+        border-radius: 16px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.3);
         direction: rtl;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        margin-top: 15px;
+        margin-bottom: 15px;
+        border-top: 6px solid #059669;
+    }
+    .invoice-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 2px solid #e2e8f0;
+        padding-bottom: 15px;
+        margin-bottom: 15px;
+    }
+    .invoice-title {
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: #0f172a;
+        margin: 0;
+    }
+    .invoice-sub {
+        font-size: 0.95rem;
+        color: #64748b;
+        margin: 2px 0;
+    }
+    .invoice-badge {
+        background-color: #f1f5f9;
+        padding: 8px 15px;
+        border-radius: 8px;
+        text-align: left;
+    }
+    .invoice-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+        margin-bottom: 15px;
+    }
+    .invoice-table th {
+        background-color: #f8fafc;
+        color: #334155;
+        padding: 10px;
+        border-bottom: 2px solid #cbd5e1;
+        font-size: 0.9rem;
+        text-align: right;
+    }
+    .invoice-table td {
+        padding: 10px;
+        border-bottom: 1px solid #e2e8f0;
+        color: #1e293b;
+        font-size: 0.9rem;
+        text-align: right;
     }
     #MainMenu, footer, header {visibility: hidden;}
 </style>
@@ -349,7 +400,7 @@ if selected_tab == "📊 الرئيسية والمالية":
         st.info("لا توجد مبيعات مسجلة حتى الآن.")
 
 # -------------------------------------------------------------
-# 2️⃣ الديون والوكلاء (مع طباعة وصل القبض وكشف الحساب)
+# 2️⃣ الديون والوكلاء (مع وصل القبض الجديد بصيغة PDF/HTML)
 # -------------------------------------------------------------
 elif selected_tab == "🤝 الديون والوكلاء":
     st.markdown("### 💳 إدارة الديون والوكلاء")
@@ -417,35 +468,54 @@ elif selected_tab == "🤝 الديون والوكلاء":
                 factory_data["receipt_counter"] = receipt_no + 1
                 save_all_factories(all_factories)
 
-                st.toast(
-                    "💵 تم تسجيل التسديد بنجاح وإصدار وصل القبض!", icon="✅"
-                )
+                st.toast("💵 تم تسجيل التسديد بنجاح وإصدار الوصل!", icon="✅")
                 st.success("تم تسجيل عملية التسديد بنجاح!")
 
-                # معاينة وصل القبض الجاهز للطباعة
-                st.markdown("---")
-                st.markdown("#### 📄 معاينة وصل القبض للطباعة:")
+                # وصل القبض الاحترافي الجديد كلياً
                 receipt_html = f"""
-                <div class="printable-receipt">
-                    <h3 style="text-align: center; margin-bottom: 5px;">{current_factory_name}</h3>
-                    <h4 style="text-align: center; color: #555; margin-top: 0;">وصل قبض نقدي</h4>
-                    <hr>
-                    <p><b>رقم الوصل:</b> #{receipt_no}</p>
-                    <p><b>التاريخ:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
-                    <p><b>استلمنا من السيد/المحل:</b> {selected_ag}</p>
-                    <p><b>المبلغ الواصل:</b> <span style="font-size: 1.2em; color: #0d6efd;"><b>{pay_amount:,} د.ع</b></span></p>
-                    <p><b>الرصيد المتبقي بالذمة:</b> {new_debt:,} د.ع</p>
-                    <br>
-                    <div style="display: flex; justify-content: space-between; margin-top: 30px;">
-                        <p>توقيع المستلم: ........................</p>
-                        <p>ختم المعمل: ........................</p>
+                <div class="invoice-card" id="printable-receipt-area">
+                    <div class="invoice-header">
+                        <div>
+                            <h2 class="invoice-title">{current_factory_name}</h2>
+                            <p class="invoice-sub">قسم الحسابات المالية والقبض النقدي</p>
+                        </div>
+                        <div class="invoice-badge">
+                            <p style="margin: 0; font-weight: bold; color: #059669;">وصل قبض نقدي</p>
+                            <p class="invoice-sub">رقم: #{receipt_no}</p>
+                        </div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 0.95rem;">
+                        <div><b>التاريخ والوقت:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
+                        <div><b>السيد / المحل:</b> {selected_ag}</div>
+                    </div>
+                    <table class="invoice-table">
+                        <tr>
+                            <th>بيان المعاملة</th>
+                            <th>المبلغ الواصل (د.ع)</th>
+                            <th>الرصيد المتبقي بالذمة (د.ع)</th>
+                        </tr>
+                        <tr>
+                            <td>دفعة نقدية مسددة لحساب الوكيل</td>
+                            <td><b>{pay_amount:,}</b></td>
+                            <td><span style="color: {'#dc2626' if new_debt > 0 else '#059669'};"><b>{new_debt:,}</b></span></td>
+                        </tr>
+                    </table>
+                    <div style="display: flex; justify-content: space-between; margin-top: 30px; font-size: 0.85rem; color: #64748b; border-top: 1px dashed #cbd5e1; paddingTop: 15px;">
+                        <div>تم إصدار هذا الوصل إلكترونياً عبر نظام إدارة المعامل</div>
+                        <div>ختم الإدارة: _________________</div>
                     </div>
                 </div>
                 """
                 st.markdown(receipt_html, unsafe_allow_html=True)
-                st.info(
-                    "💡 يمكنك طباعة هذا الوصل مباشرة بالضغط على (Ctrl + P) في"
-                    " المتصفح."
+
+                # زر تحميل وصل القبض بصيغة PDF/HTML مخصص
+                st.download_button(
+                    label="📥 تحميل وصل القبض (PDF / HTML)",
+                    data=receipt_html,
+                    file_name=f"وصل_قبض_{receipt_no}_{selected_ag}.html",
+                    mime="text/html",
+                    type="primary",
+                    key="download_receipt_pdf_btn",
                 )
         else:
             st.info("لا يوجد وكلاء مسجلون بعد.")
@@ -463,40 +533,6 @@ elif selected_tab == "🤝 الديون والوكلاء":
             trans_list = ag_info.get("transactions", [])
             if trans_list:
                 st.dataframe(pd.DataFrame(trans_list), use_container_width=True)
-
-                # زر معاينة كشف الحساب الكامل للطباعة
-                if st.button("🖨️ تجهيز كشف الحساب للطباعة"):
-                    statement_html = f"""
-                    <div class="printable-receipt">
-                        <h3 style="text-align: center;">{current_factory_name}</h3>
-                        <h4 style="text-align: center; color: #555;">كشف حساب تفصيلي للوكيل: {sel_ag_view}</h4>
-                        <hr>
-                        <p><b>رقم الهاتف:</b> {ag_info.get('phone', 'غير متوفر')}</p>
-                        <p><b>إجمالي الدين الحالي:</b> <span style="color: red;">{ag_info.get('debt', 0):,} د.ع</span></p>
-                        <table border="1" style="width: 100%; border-collapse: collapse; text-align: center; margin-top: 10px;">
-                            <tr style="background-color: #f2f2f2;">
-                                <th style="padding: 8px;">التاريخ</th>
-                                <th style="padding: 8px;">الحركة</th>
-                                <th style="padding: 8px;">المبلغ (د.ع)</th>
-                                <th style="padding: 8px;">الرصيد المتبقي</th>
-                                <th style="padding: 8px;">ملاحظات</th>
-                            </tr>
-                    """
-                    for t in trans_list:
-                        statement_html += f"""
-                            <tr>
-                                <td style="padding: 6px;">{t.get('date', '')}</td>
-                                <td style="padding: 6px;">{t.get('type', '')}</td>
-                                <td style="padding: 6px;">{t.get('amount', 0):,}</td>
-                                <td style="padding: 6px;">{t.get('balance', 0):,}</td>
-                                <td style="padding: 6px;">{t.get('note', '')}</td>
-                            </tr>
-                        """
-                    statement_html += """
-                        </table>
-                    </div>
-                    """
-                    st.markdown(statement_html, unsafe_allow_html=True)
             else:
                 st.info("لا توجد حركات مالية مسجلة لهذا الوكيل.")
         else:
@@ -568,7 +604,6 @@ elif selected_tab == "🛒 بيع / قائمة حساب":
             for item in selected_items:
                 factory_data["finished_goods"][item["model"]] -= item["count"]
 
-            # إذا كان البيع لوكيل، يتم تسجيله كدين أو مبيعات حسب النظام
             factory_data["sales_history"].append({
                 "receipt_no": receipt_no,
                 "date": datetime.now().strftime("%Y-%m-%d"),
@@ -582,43 +617,64 @@ elif selected_tab == "🛒 بيع / قائمة حساب":
             st.toast("🛒 تمت عملية البيع بنجاح!", icon="🎉")
             st.success("تم إتمام عملية البيع وتحديث المخزون بنجاح!")
 
-            # معاينة قائمة الحساب للطباعة
-            invoice_html = f"""
-            <div class="printable-receipt">
-                <h3 style="text-align: center;">{current_factory_name}</h3>
-                <h4 style="text-align: center; color: #555;">قائمة مبيعات / حساب</h4>
-                <hr>
-                <p><b>رقم القائمة:</b> #{receipt_no}</p>
-                <p><b>التاريخ:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
-                <p><b>اسم المشتري / الوكيل:</b> {customer_name}</p>
-                <table border="1" style="width: 100%; border-collapse: collapse; text-align: center; margin-top: 10px;">
-                    <tr style="background-color: #f2f2f2;">
-                        <th style="padding: 8px;">المنتج</th>
-                        <th style="padding: 8px;">العدد</th>
-                        <th style="padding: 8px;">السعر المفرد</th>
-                        <th style="padding: 8px;">الإجمالي</th>
-                    </tr>
-            """
+            # قائمة المبيعات الاحترافية الجديدة كلياً
+            invoice_rows = ""
             for itm in selected_items:
-                invoice_html += f"""
+                invoice_rows += f"""
                     <tr>
-                        <td style="padding: 6px;">{itm['model']}</td>
-                        <td style="padding: 6px;">{itm['count']}</td>
-                        <td style="padding: 6px;">{itm['price']:,}</td>
-                        <td style="padding: 6px;">{itm['total']:,}</td>
+                        <td>{itm['model']}</td>
+                        <td>{itm['count']}</td>
+                        <td>{itm['price']:,} د.ع</td>
+                        <td><b>{itm['total']:,} د.ع</b></td>
                     </tr>
                 """
-            invoice_html += f"""
+
+            invoice_html = f"""
+            <div class="invoice-card">
+                <div class="invoice-header">
+                    <div>
+                        <h2 class="invoice-title">{current_factory_name}</h2>
+                        <p class="invoice-sub">قائمة مبيعات وحساب رسمي</p>
+                    </div>
+                    <div class="invoice-badge">
+                        <p style="margin: 0; font-weight: bold; color: #0284c7;">قائمة مبيعات</p>
+                        <p class="invoice-sub">رقم القائمة: #{receipt_no}</p>
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 0.95rem;">
+                    <div><b>اسم الزبون / الوكيل:</b> {customer_name}</div>
+                    <div><b>التاريخ:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
+                </div>
+                <table class="invoice-table">
+                    <tr>
+                        <th>المنتج</th>
+                        <th>العدد</th>
+                        <th>السعر المفرد</th>
+                        <th>الإجمالي</th>
+                    </tr>
+                    {invoice_rows}
                 </table>
-                <h3 style="text-align: left; margin-top: 15px;">المبلغ الإجمالي الكلي: {grand_total:,} د.ع</h3>
+                <div style="text-align: left; font-size: 1.2rem; font-weight: bold; color: #0f172a; margin-top: 15px; border-top: 2px solid #e2e8f0; padding-top: 10px;">
+                    المبلغ الإجمالي الكلي: <span style="color: #059669;">{grand_total:,} د.ع</span>
+                </div>
             </div>
             """
             st.markdown(invoice_html, unsafe_allow_html=True)
+
+            # زر تحميل قائمة المبيعات بصيغة PDF/HTML مخصص
+            st.download_button(
+                label="📥 تحميل قائمة المبيعات والحساب (PDF / HTML)",
+                data=invoice_html,
+                file_name=f"قائمة_مبيعات_{receipt_no}_{customer_name}.html",
+                mime="text/html",
+                type="primary",
+                key="download_invoice_pdf_btn",
+            )
         else:
             st.warning("يرجى إدخال اسم المشتري وتحديد منتج واحد على الأقل.")
 
 # -------------------------------------------------------------
-# 4️⃣ تسجيل إنتاج برادات
+# 4️⃣ إدارة المخزون الخام
 # -------------------------------------------------------------
 elif selected_tab == "📦 إدارة المخزون الخام":
     st.markdown("### 📦 أرصدة المواد الخام الحالية بالمخزن")
@@ -629,7 +685,7 @@ elif selected_tab == "📦 إدارة المخزون الخام":
     st.dataframe(inv_df, use_container_width=True)
 
 # -------------------------------------------------------------
-# 5️⃣ إدارة المخزون الخام
+# 5️⃣ تسجيل إنتاج برادات
 # -------------------------------------------------------------
 elif selected_tab == "🏭 تسجيل إنتاج برادات":
     st.markdown("### 🏭 تسجيل وجبة إنتاج جديدة")
@@ -683,14 +739,12 @@ elif selected_tab == "🏭 تسجيل إنتاج برادات":
                 "qty": produce_qty,
             })
             save_all_factories(all_factories)
-            st.toast(
-                "🚀 تم إتمام عملية الإنتاج وتحديث المخزون بنجاح!", icon="✅"
-            )
+            st.toast("🚀 تم إتمام عملية الإنتاج بنجاح!", icon="✅")
             st.success("✅ تم تسجيل الإنتاج وإضافته للمخزون بنجاح!")
             st.rerun()
 
 # -------------------------------------------------------------
-# 6️⃣ طلبات ونقص المواد (زيادة المواد عند نفادها)
+# 6️⃣ طلبات ونقص المواد
 # -------------------------------------------------------------
 elif (
     selected_tab == "📥 طلبات ونقص المواد"
