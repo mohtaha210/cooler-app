@@ -300,70 +300,71 @@ def generate_payment_pdf(
     factory_name, agent_name, date_str, amount, remaining_debt, old_debt, receipt_no, note=""
 ):
     font_path = ensure_arabic_font()
-    # استخدام مقاس A5 بشكل عمودي (Portrait) ليغطي تماماً نصف ورقة A4
+    # استخدام مقاس A5 بشكل عمودي مع هوامش ضيقة لتفادي أي فراغات مفرطة
     pdf = FPDF(orientation="P", unit="mm", format="A5")
+    pdf.set_margins(8, 8, 8)
     pdf.add_page()
 
     if os.path.exists(font_path):
         pdf.add_font("Amiri", "", font_path)
-        pdf.set_font("Amiri", "", 20)
+        pdf.set_font("Amiri", "", 18)
     else:
-        pdf.set_font("Arial", "B", 18)
+        pdf.set_font("Arial", "B", 16)
 
     pdf.set_text_color(0, 0, 0)
     
-    # عنوان السند في المنتصف مع اسم المعمل بالأعلى
+    # رأس السند (اسم المعمل وعنوان المستند)
     pdf.set_y(10)
-    pdf.cell(0, 8, ar(factory_name), ln=True, align="C")
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "B" if not os.path.exists(font_path) else "", 16)
-    pdf.cell(0, 10, ar("سند قبض"), ln=True, align="C")
-    pdf.ln(2)
+    pdf.cell(0, 7, ar(factory_name), ln=True, align="C")
+    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 14)
+    pdf.cell(0, 8, ar("سند قبض"), ln=True, align="C")
+    pdf.ln(1)
 
-    # ضبط الخط لتفاصيل جداول الوصل
+    # ضبط الخط لتفاصيل جداول الوصل (العرض المتاح الصافي داخل A5 مع الهوامش هو 132 مم)
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 10)
     pdf.set_line_width(0.3)
     
-    # السطر الأول (رقم المستند / تاريخ المستند) - العرض الكلي لـ A5 عمودي هو 148 ملم (الهوامش الصافية ~132 ملم)
-    pdf.cell(66, 7, ar("رقم المستند"), border=1, align="C")
-    pdf.cell(66, 7, ar("تاريخ المستند"), border=1, align="C", ln=True)
+    # السطر الأول (رقم المستند / تاريخ المستند)
+    pdf.cell(66, 6.5, ar("رقم المستند"), border=1, align="C")
+    pdf.cell(66, 6.5, ar("تاريخ المستند"), border=1, align="C", ln=True)
     
-    pdf.cell(66, 7, str(receipt_no), border=1, align="C")
-    pdf.cell(66, 7, str(date_str), border=1, align="C", ln=True)
-    pdf.ln(2) 
+    pdf.cell(66, 6.5, str(receipt_no), border=1, align="C")
+    pdf.cell(66, 6.5, str(date_str), border=1, align="C", ln=True)
+    pdf.ln(1) 
     
     # السطر الثاني (العملة / السيد)
-    pdf.cell(35, 7, ar("العملة"), border=1, align="C")
-    pdf.cell(97, 7, ar("السيد"), border=1, align="C", ln=True)
+    pdf.cell(35, 6.5, ar("العملة"), border=1, align="C")
+    pdf.cell(97, 6.5, ar("السيد"), border=1, align="C", ln=True)
     
-    pdf.cell(35, 7, ar("دينار عراقي"), border=1, align="C")
-    pdf.cell(97, 7, ar(agent_name), border=1, align="C", ln=True)
-    pdf.ln(2)
+    pdf.cell(35, 6.5, ar("دينار عراقي"), border=1, align="C")
+    pdf.cell(97, 6.5, ar(agent_name), border=1, align="C", ln=True)
+    pdf.ln(1)
     
     # السطر الثالث (المبلغ كتابة / المبلغ رقماً)
     amount_in_words = f"{number_to_arabic_words(int(amount))} دينار عراقي فقط لا غير"
-    pdf.cell(97, 7, ar(amount_in_words), border=1, align="C")
-    pdf.cell(35, 7, f"{amount:,.2f}", border=1, align="C", ln=True)
-    pdf.ln(2)
+    pdf.cell(97, 6.5, ar(amount_in_words), border=1, align="C")
+    pdf.cell(35, 6.5, f"{amount:,.2f}", border=1, align="C", ln=True)
+    pdf.ln(1)
     
     # السطر الرابع (الملاحظات)
     note_text = f"الملاحظات: {note}" if note else "الملاحظات:"
-    pdf.cell(132, 7, ar(note_text), border=1, align="R", ln=True)
-    pdf.ln(2)
+    pdf.cell(132, 6.5, ar(note_text), border=1, align="R", ln=True)
+    pdf.ln(1)
     
     # السطر الخامس (الرصيد بعد التسديد / الرصيد السابق)
-    pdf.cell(66, 7, ar("الرصيد بعد التسديد"), border=1, align="C")
-    pdf.cell(66, 7, ar("الرصيد السابق"), border=1, align="C", ln=True)
+    pdf.cell(66, 6.5, ar("الرصيد بعد التسديد"), border=1, align="C")
+    pdf.cell(66, 6.5, ar("الرصيد السابق"), border=1, align="C", ln=True)
     
-    pdf.cell(66, 7, f"{remaining_debt:,.2f}", border=1, align="C")
-    pdf.cell(66, 7, f"{old_debt:,.2f}", border=1, align="C", ln=True)
+    pdf.cell(66, 6.5, f"{remaining_debt:,.2f}", border=1, align="C")
+    pdf.cell(66, 6.5, f"{old_debt:,.2f}", border=1, align="C", ln=True)
     
-    pdf.ln(8)
+    pdf.ln(5)
     
     # التوقيع أسفل اليسار
-    pdf.cell(132, 7, ar("توقيع المستلم: .........................."), ln=True, align="L")
+    pdf.cell(132, 6.5, ar("توقيع المستلم: .........................."), ln=True, align="L")
     
-    # رسم الإطار الخارجي (Border Outline) لتأطير نصف الورقة بشكل أنيق
-    end_y = pdf.get_y() + 4
+    # حساب الإحداثيات لرسم الإطار الخارجي بدقة لكي يحيط بجميع العناصر دون فراغات سفلية مفرطة
+    end_y = pdf.get_y() + 3
     pdf.set_line_width(0.5)
     pdf.rect(8, 8, 132, end_y - 8)
     
@@ -689,7 +690,7 @@ with tab_agents:
 
                 save_all_factories(all_factories)
 
-                # استدعاء الدالة المحدثة لسند القبض (نصف ورقة A4 - A5 عمودي)
+                # استدعاء دالة سند القبض المعدلة بالهوامش المنضبطة
                 pdf_bytes = generate_payment_pdf(
                     factory_name=current_factory_name,
                     agent_name=selected_ag,
