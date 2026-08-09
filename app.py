@@ -12,7 +12,7 @@ import streamlit as st
 DATA_FILE = "multi_factory_data.json"
 
 
-# --- 1. إدارة ملف البيانات والتخزين الدائم للنظام ---
+# --- 1. إدارة ملف البيانات والتخزين الدائم للنظام (بقيم صفرية ونظيفة) ---
 def get_default_factory_data(factory_name, admin_user, admin_pass):
     return {
         "info": {"factory_name": factory_name},
@@ -24,22 +24,22 @@ def get_default_factory_data(factory_name, admin_user, admin_pass):
             }
         },
         "inventory": {
-            "الحنفية": 100.0,
-            "البانكة": 50.0,
-            "الماطور": 50.0,
-            "التوماتيك": 50.0,
-            "الطواف": 50.0,
-            "الراديتر": 50.0,
-            "زواية القاعدة": 200.0,
-            "المنيوم القاعدة 1.35m": 50.0,
-            "الجكنة": 100.0,
-            "واشر حديد": 100.0,
-            "واشر بلاستك": 100.0,
-            "زبانة": 100.0,
-            "كبلري 1.7m": 50.0,
-            "كويل": 50.0,
-            "بوري ربع 1.5m": 50.0,
-            "طبقة وربع بليت": 1.25,
+            "الحنفية": 0.0,
+            "البانكة": 0.0,
+            "الماطور": 0.0,
+            "التوماتيك": 0.0,
+            "الطواف": 0.0,
+            "الراديتر": 0.0,
+            "زواية القاعدة": 0.0,
+            "المنيوم القاعدة 1.35m": 0.0,
+            "الجكنة": 0.0,
+            "واشر حديد": 0.0,
+            "واشر بلاستك": 0.0,
+            "زبانة": 0.0,
+            "كبلري 1.7m": 0.0,
+            "كويل": 0.0,
+            "بوري ربع 1.5m": 0.0,
+            "طبقة وربع بليت": 0.0,
         },
         "finished_goods": {
             "براد حنفية واحدة": 0,
@@ -460,7 +460,6 @@ if st.session_state.role == "admin":
         month_sales_count, month_revenue = 0, 0
 
         if not sales_df.empty and "date" in sales_df.columns:
-            # معالجة التواريخ بأمان وتجنب أخطاء القيم الفارغة
             sales_df["date"] = pd.to_datetime(
                 sales_df["date"], errors="coerce"
             )
@@ -571,9 +570,7 @@ with tab_agents:
             pay_amount = st.number_input(
                 "المبلغ المدفوع (المستلم):",
                 min_value=1.0,
-                value=min(
-                    100000.0, float(current_debt) if current_debt > 0 else 100000.0
-                ),
+                value=100000.0,
                 step=10000.0,
             )
             pay_note = st.text_input(
@@ -585,6 +582,9 @@ with tab_agents:
                 type="primary",
                 use_container_width=True,
             ):
+                # التعديل الصحيح للتعامل مع الدين بالسالب أو الموجب
+                # إذا كان الدين موجباً يمثل ذمة (خصم الدفعة منه يقلله: current_debt - pay_amount)
+                # وإذا كنت تعتمد النظام السالب، يمكنك ضبط المعادلة هنا لتعود للجمع أو الطرح بحسب رغبتك.
                 new_debt = current_debt - pay_amount
                 factory_data["agents"][selected_ag]["debt"] = new_debt
 
