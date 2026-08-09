@@ -400,7 +400,7 @@ if selected_tab == "📊 الرئيسية والمالية":
         st.info("لا توجد مبيعات مسجلة حتى الآن.")
 
 # -------------------------------------------------------------
-# 2️⃣ الديون والوكلاء (مع وصل القبض الجديد بصيغة PDF/HTML)
+# 2️⃣ الديون والوكلاء
 # -------------------------------------------------------------
 elif selected_tab == "🤝 الديون والوكلاء":
     st.markdown("### 💳 إدارة الديون والوكلاء")
@@ -471,47 +471,73 @@ elif selected_tab == "🤝 الديون والوكلاء":
                 st.toast("💵 تم تسجيل التسديد بنجاح وإصدار الوصل!", icon="✅")
                 st.success("تم تسجيل عملية التسديد بنجاح!")
 
-                # وصل القبض الاحترافي الجديد كلياً
-                receipt_html = f"""
-                <div class="invoice-card" id="printable-receipt-area">
-                    <div class="invoice-header">
-                        <div>
-                            <h2 class="invoice-title">{current_factory_name}</h2>
-                            <p class="invoice-sub">قسم الحسابات المالية والقبض النقدي</p>
+                # وصل القبض الاحترافي مع ترميز HTML و UTF-8 الصحيح للغة العربية
+                raw_receipt_html = f"""
+                <!DOCTYPE html>
+                <html lang="ar" dir="rtl">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>وصل قبض #{receipt_no}</title>
+                    <style>
+                        body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f8fafc; padding: 20px; }}
+                        .invoice-card {{ background: #ffffff; color: #1e293b; padding: 25px; border-radius: 16px; border-top: 6px solid #059669; max-width: 600px; margin: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }}
+                        .invoice-header {{ display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 15px; }}
+                        .invoice-title {{ font-size: 1.4rem; font-weight: 800; color: #0f172a; margin: 0; }}
+                        .invoice-sub {{ font-size: 0.95rem; color: #64748b; margin: 2px 0; }}
+                        .invoice-badge {{ background-color: #f1f5f9; padding: 8px 15px; border-radius: 8px; text-align: left; }}
+                        .invoice-table {{ width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px; }}
+                        .invoice-table th {{ background-color: #f8fafc; color: #334155; padding: 10px; border-bottom: 2px solid #cbd5e1; font-size: 0.9rem; text-align: right; }}
+                        .invoice-table td {{ padding: 10px; border-bottom: 1px solid #e2e8f0; color: #1e293b; font-size: 0.9rem; text-align: right; }}
+                    </style>
+                </head>
+                <body>
+                    <div class="invoice-card">
+                        <div class="invoice-header">
+                            <div>
+                                <h2 class="invoice-title">{current_factory_name}</h2>
+                                <p class="invoice-sub">قسم الحسابات المالية والقبض النقدي</p>
+                            </div>
+                            <div class="invoice-badge">
+                                <p style="margin: 0; font-weight: bold; color: #059669;">وصل قبض نقدي</p>
+                                <p class="invoice-sub">رقم: #{receipt_no}</p>
+                            </div>
                         </div>
-                        <div class="invoice-badge">
-                            <p style="margin: 0; font-weight: bold; color: #059669;">وصل قبض نقدي</p>
-                            <p class="invoice-sub">رقم: #{receipt_no}</p>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 0.95rem;">
+                            <div><b>التاريخ والوقت:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
+                            <div><b>السيد / المحل:</b> {selected_ag}</div>
+                        </div>
+                        <table class="invoice-table">
+                            <tr>
+                                <th>بيان المعاملة</th>
+                                <th>المبلغ الواصل (د.ع)</th>
+                                <th>الرصيد المتبقي بالذمة (د.ع)</th>
+                            </tr>
+                            <tr>
+                                <td>دفعة نقدية مسددة لحساب الوكيل</td>
+                                <td><b>{pay_amount:,}</b></td>
+                                <td><span style="color: {'#dc2626' if new_debt > 0 else '#059669'};"><b>{new_debt:,}</b></span></td>
+                            </tr>
+                        </table>
+                        <div style="display: flex; justify-content: space-between; margin-top: 30px; font-size: 0.85rem; color: #64748b; border-top: 1px dashed #cbd5e1; padding-top: 15px;">
+                            <div>تم إصدار هذا الوصل إلكترونياً عبر نظام إدارة المعامل</div>
+                            <div>ختم الإدارة: _________________</div>
                         </div>
                     </div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 0.95rem;">
-                        <div><b>التاريخ والوقت:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
-                        <div><b>السيد / المحل:</b> {selected_ag}</div>
-                    </div>
-                    <table class="invoice-table">
-                        <tr>
-                            <th>بيان المعاملة</th>
-                            <th>المبلغ الواصل (د.ع)</th>
-                            <th>الرصيد المتبقي بالذمة (د.ع)</th>
-                        </tr>
-                        <tr>
-                            <td>دفعة نقدية مسددة لحساب الوكيل</td>
-                            <td><b>{pay_amount:,}</b></td>
-                            <td><span style="color: {'#dc2626' if new_debt > 0 else '#059669'};"><b>{new_debt:,}</b></span></td>
-                        </tr>
-                    </table>
-                    <div style="display: flex; justify-content: space-between; margin-top: 30px; font-size: 0.85rem; color: #64748b; border-top: 1px dashed #cbd5e1; paddingTop: 15px;">
-                        <div>تم إصدار هذا الوصل إلكترونياً عبر نظام إدارة المعامل</div>
-                        <div>ختم الإدارة: _________________</div>
-                    </div>
-                </div>
+                </body>
+                </html>
                 """
-                st.markdown(receipt_html, unsafe_allow_html=True)
+                st.markdown(
+                    raw_receipt_html.replace(
+                        "<!DOCTYPE html>", ""
+                    ).replace(
+                        "<html>", ""
+                    ),
+                    unsafe_allow_html=True,
+                )
 
-                # زر تحميل وصل القبض بصيغة PDF/HTML مخصص
                 st.download_button(
-                    label="📥 تحميل وصل القبض (PDF / HTML)",
-                    data=receipt_html,
+                    label="📥 تحميل وصل القبض (ملف HTML جاهز للطباعة PDF)",
+                    data=raw_receipt_html.encode("utf-8"),
                     file_name=f"وصل_قبض_{receipt_no}_{selected_ag}.html",
                     mime="text/html",
                     type="primary",
@@ -617,7 +643,6 @@ elif selected_tab == "🛒 بيع / قائمة حساب":
             st.toast("🛒 تمت عملية البيع بنجاح!", icon="🎉")
             st.success("تم إتمام عملية البيع وتحديث المخزون بنجاح!")
 
-            # قائمة المبيعات الاحترافية الجديدة كلياً
             invoice_rows = ""
             for itm in selected_items:
                 invoice_rows += f"""
@@ -629,42 +654,68 @@ elif selected_tab == "🛒 بيع / قائمة حساب":
                     </tr>
                 """
 
-            invoice_html = f"""
-            <div class="invoice-card">
-                <div class="invoice-header">
-                    <div>
-                        <h2 class="invoice-title">{current_factory_name}</h2>
-                        <p class="invoice-sub">قائمة مبيعات وحساب رسمي</p>
+            raw_invoice_html = f"""
+            <!DOCTYPE html>
+            <html lang="ar" dir="rtl">
+            <head>
+                <meta charset="UTF-8">
+                <title>قائمة مبيعات #{receipt_no}</title>
+                <style>
+                    body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f8fafc; padding: 20px; }}
+                    .invoice-card {{ background: #ffffff; color: #1e293b; padding: 25px; border-radius: 16px; border-top: 6px solid #059669; max-width: 600px; margin: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }}
+                    .invoice-header {{ display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 15px; }}
+                    .invoice-title {{ font-size: 1.4rem; font-weight: 800; color: #0f172a; margin: 0; }}
+                    .invoice-sub {{ font-size: 0.95rem; color: #64748b; margin: 2px 0; }}
+                    .invoice-badge {{ background-color: #f1f5f9; padding: 8px 15px; border-radius: 8px; text-align: left; }}
+                    .invoice-table {{ width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px; }}
+                    .invoice-table th {{ background-color: #f8fafc; color: #334155; padding: 10px; border-bottom: 2px solid #cbd5e1; font-size: 0.9rem; text-align: right; }}
+                    .invoice-table td {{ padding: 10px; border-bottom: 1px solid #e2e8f0; color: #1e293b; font-size: 0.9rem; text-align: right; }}
+                </style>
+            </head>
+            <body>
+                <div class="invoice-card">
+                    <div class="invoice-header">
+                        <div>
+                            <h2 class="invoice-title">{current_factory_name}</h2>
+                            <p class="invoice-sub">قائمة مبيعات وحساب رسمي</p>
+                        </div>
+                        <div class="invoice-badge">
+                            <p style="margin: 0; font-weight: bold; color: #0284c7;">قائمة مبيعات</p>
+                            <p class="invoice-sub">رقم القائمة: #{receipt_no}</p>
+                        </div>
                     </div>
-                    <div class="invoice-badge">
-                        <p style="margin: 0; font-weight: bold; color: #0284c7;">قائمة مبيعات</p>
-                        <p class="invoice-sub">رقم القائمة: #{receipt_no}</p>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 0.95rem;">
+                        <div><b>اسم الزبون / الوكيل:</b> {customer_name}</div>
+                        <div><b>التاريخ:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
+                    </div>
+                    <table class="invoice-table">
+                        <tr>
+                            <th>المنتج</th>
+                            <th>العدد</th>
+                            <th>السعر المفرد</th>
+                            <th>الإجمالي</th>
+                        </tr>
+                        {invoice_rows}
+                    </table>
+                    <div style="text-align: left; font-size: 1.2rem; font-weight: bold; color: #0f172a; margin-top: 15px; border-top: 2px solid #e2e8f0; padding-top: 10px;">
+                        المبلغ الإجمالي الكلي: <span style="color: #059669;">{grand_total:,} د.ع</span>
                     </div>
                 </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 0.95rem;">
-                    <div><b>اسم الزبون / الوكيل:</b> {customer_name}</div>
-                    <div><b>التاريخ:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
-                </div>
-                <table class="invoice-table">
-                    <tr>
-                        <th>المنتج</th>
-                        <th>العدد</th>
-                        <th>السعر المفرد</th>
-                        <th>الإجمالي</th>
-                    </tr>
-                    {invoice_rows}
-                </table>
-                <div style="text-align: left; font-size: 1.2rem; font-weight: bold; color: #0f172a; margin-top: 15px; border-top: 2px solid #e2e8f0; padding-top: 10px;">
-                    المبلغ الإجمالي الكلي: <span style="color: #059669;">{grand_total:,} د.ع</span>
-                </div>
-            </div>
+            </body>
+            </html>
             """
-            st.markdown(invoice_html, unsafe_allow_html=True)
+            st.markdown(
+                raw_invoice_html.replace("<!DOCTYPE html>", "")
+                .replace("<html>", "")
+                .replace("<body>", "")
+                .replace("</body>", "")
+                .replace("</html>", ""),
+                unsafe_allow_html=True,
+            )
 
-            # زر تحميل قائمة المبيعات بصيغة PDF/HTML مخصص
             st.download_button(
-                label="📥 تحميل قائمة المبيعات والحساب (PDF / HTML)",
-                data=invoice_html,
+                label="📥 تحميل قائمة المبيعات (ملف HTML جاهز للطباعة PDF)",
+                data=raw_invoice_html.encode("utf-8"),
                 file_name=f"قائمة_مبيعات_{receipt_no}_{customer_name}.html",
                 mime="text/html",
                 type="primary",
