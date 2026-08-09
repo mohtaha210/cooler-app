@@ -300,7 +300,6 @@ def generate_payment_pdf(
     factory_name, agent_name, date_str, amount, remaining_debt, old_debt, receipt_no, note=""
 ):
     font_path = ensure_arabic_font()
-    # استخدام مقاس A5 بشكل عمودي مع هوامش ضيقة لتفادي أي فراغات مفرطة
     pdf = FPDF(orientation="P", unit="mm", format="A5")
     pdf.set_margins(8, 8, 8)
     pdf.add_page()
@@ -313,18 +312,15 @@ def generate_payment_pdf(
 
     pdf.set_text_color(0, 0, 0)
     
-    # رأس السند (اسم المعمل وعنوان المستند)
     pdf.set_y(10)
     pdf.cell(0, 7, ar(factory_name), ln=True, align="C")
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 14)
     pdf.cell(0, 8, ar("سند قبض"), ln=True, align="C")
     pdf.ln(1)
 
-    # ضبط الخط لتفاصيل جداول الوصل (العرض المتاح الصافي داخل A5 مع الهوامش هو 132 مم)
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 10)
     pdf.set_line_width(0.3)
     
-    # السطر الأول (رقم المستند / تاريخ المستند)
     pdf.cell(66, 6.5, ar("رقم المستند"), border=1, align="C")
     pdf.cell(66, 6.5, ar("تاريخ المستند"), border=1, align="C", ln=True)
     
@@ -332,7 +328,6 @@ def generate_payment_pdf(
     pdf.cell(66, 6.5, str(date_str), border=1, align="C", ln=True)
     pdf.ln(1) 
     
-    # السطر الثاني (العملة / السيد)
     pdf.cell(35, 6.5, ar("العملة"), border=1, align="C")
     pdf.cell(97, 6.5, ar("السيد"), border=1, align="C", ln=True)
     
@@ -340,18 +335,15 @@ def generate_payment_pdf(
     pdf.cell(97, 6.5, ar(agent_name), border=1, align="C", ln=True)
     pdf.ln(1)
     
-    # السطر الثالث (المبلغ كتابة / المبلغ رقماً)
     amount_in_words = f"{number_to_arabic_words(int(amount))} دينار عراقي فقط لا غير"
     pdf.cell(97, 6.5, ar(amount_in_words), border=1, align="C")
     pdf.cell(35, 6.5, f"{amount:,.2f}", border=1, align="C", ln=True)
     pdf.ln(1)
     
-    # السطر الرابع (الملاحظات)
     note_text = f"الملاحظات: {note}" if note else "الملاحظات:"
     pdf.cell(132, 6.5, ar(note_text), border=1, align="R", ln=True)
     pdf.ln(1)
     
-    # السطر الخامس (الرصيد بعد التسديد / الرصيد السابق)
     pdf.cell(66, 6.5, ar("الرصيد بعد التسديد"), border=1, align="C")
     pdf.cell(66, 6.5, ar("الرصيد السابق"), border=1, align="C", ln=True)
     
@@ -360,10 +352,8 @@ def generate_payment_pdf(
     
     pdf.ln(5)
     
-    # التوقيع أسفل اليسار
     pdf.cell(132, 6.5, ar("توقيع المستلم: .........................."), ln=True, align="L")
     
-    # حساب الإحداثيات لرسم الإطار الخارجي بدقة لكي يحيط بجميع العناصر دون فراغات سفلية مفرطة
     end_y = pdf.get_y() + 3
     pdf.set_line_width(0.5)
     pdf.rect(8, 8, 132, end_y - 8)
@@ -527,6 +517,7 @@ if st.session_state.role == "admin":
         "📄 تصدير Excel",
         "➕ إضافة مادة جديدة",
         "🛠️ أنواع البرادات (BOM)",
+        "⚠️ فورمات كامل (حذف كل البيانات)",
     ])
 else:
     tabs = st.tabs([
@@ -690,7 +681,6 @@ with tab_agents:
 
                 save_all_factories(all_factories)
 
-                # استدعاء دالة سند القبض المعدلة بالهوامش المنضبطة
                 pdf_bytes = generate_payment_pdf(
                     factory_name=current_factory_name,
                     agent_name=selected_ag,
@@ -1224,3 +1214,36 @@ if st.session_state.role == "admin":
                 save_all_factories(all_factories)
                 st.success(f"✅ تم تعريف النموذج [{new_model_name}] بنجاح!")
                 st.rerun()
+
+    with tabs[9]:
+        st.header("⚠️ فورمات كامل وإعادة تعيين النظام بالكامل")
+        st.error(
+            "تحذير خطير: هذا الخيار سيقوم بحذف جميع البيانات، الوكلاء، المخزون،"
+            " المبيعات، وسجلات الإنتاج بشكل نهائي ولا يمكن التراجع عنه!"
+        )
+
+        confirm_text = st.text_input(
+            "اكتب كلمة (DELETE) باللغة الإنجليزية لتأكيد الفورمات:"
+        )
+
+        if st.button(
+            "🔥 تنفيذ الفورمات الكامل وحذف كل شيء",
+            type="primary",
+            use_container_width=True,
+        ):
+            if confirm_text == "DELETE":
+                if os.path.exists(DATA_FILE):
+                    try:
+                        os.remove(DATA_FILE)
+                    except Exception:
+                        pass
+                st.session_state.clear()
+                st.success(
+                    "✅ تم مسح جميع البيانات بنجاح! سيتم إعادة توجيهك الآن..."
+                )
+                st.rerun()
+            else:
+                st.error(
+                    "❌ يجب كتابة كلمة (DELETE) بشكل صحيح في الحقل بالأعلى لتأكيد"
+                    " عملية الحذف."
+                )
