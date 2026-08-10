@@ -1,3 +1,7 @@
-Flask
 streamlit
 pandas
+fpdf2
+arabic-reshaper
+python-bidi
+requests
+openpyxl
