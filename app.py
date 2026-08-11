@@ -305,12 +305,13 @@ def generate_payment_pdf(
     pdf.set_margins(12, 12, 12)
     pdf.add_page()
 
-    # --- إضافة الشعار ---
+    # --- إضافة الشعار في الجهة اليمنى مع التحكم بموقعه وحجمه ---
     logo_path = "rafidain_logo.jpg"
     try:
         if os.path.exists(logo_path):
-            pdf.image(logo_path, x=75, y=10, w=60)
-            pdf.set_y(35)
+            # تم وضع الشعار في الجهة اليمنى (x=135) وبحجم مناسب (عرض 55 ملم)
+            pdf.image(logo_path, x=135, y=10, w=55)
+            pdf.set_y(32)
         else:
             pdf.set_y(12)
     except Exception:
@@ -356,11 +357,11 @@ def generate_payment_pdf(
     
     pdf.ln(4)
 
-    # --- خانة توقيع وختم القابض (تم تصغيرها لتصبح 3.5 سم لتكفي الختم بمرونة) ---
+    # --- خانة توقيع وختم القابض (بارتفاع 3.5 سم) ---
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
     pdf.cell(186, 7, ar("توقيع وختم القابض:"), ln=True, align="R")
     sign_box_y = pdf.get_y()
-    pdf.rect(12, sign_box_y, 186, 35)  # ارتفاع 35 ملم (أي 3.5 سم تماماً)
+    pdf.rect(12, sign_box_y, 186, 35)  
     
     return bytes(pdf.output())
 
@@ -885,7 +886,7 @@ with tab_inv:
                     for item in factory_data["inventory"]:
                         factory_data["inventory"][item] = 0.0
                     save_all_factories(all_factories)
-                    st.success("⚠️ تم التصفير!")
+                    st.warning("⚠️ تم التصفير!")
                     st.rerun()
     else:
         st.header("📦 المخزون الحالي")
@@ -984,7 +985,7 @@ if st.session_state.role == "admin":
 
         if st.button("🛠️ حفظ النموذج الجديد", use_container_width=True):
             if new_model_name and selected_ingredients:
-                factory_data["bom"][new_model_name] = selected_ingredients
+                factory_data["bom"][new_model_name]	= selected_ingredients
                 if new_model_name not in factory_data["finished_goods"]:
                     factory_data["finished_goods"][new_model_name] = 0
                 save_all_factories(all_factories)
