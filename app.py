@@ -305,29 +305,34 @@ def generate_payment_pdf(
     pdf.set_margins(12, 12, 12)
     pdf.add_page()
 
-    # --- البحث عن ملف اللوغو بأكثر من امتداد شائع لضمان ظهوره ---
-    logo_found = False
-    for ext in ["jpg", "jpeg", "png"]:
-        logo_path = f"rafidain_logo.{ext}"
-        if os.path.exists(logo_path):
-            try:
-                pdf.image(logo_path, x=145, y=10, w=45)
-                logo_found = True
-                break
-            except Exception:
-                pass
+    # --- رسم اللوجو الاحترافي برمجياً مباشرة (بدون الحاجة لملف خارجي) ---
+    # إطار الشعار
+    pdf.set_draw_color(15, 23, 42)
+    pdf.set_fill_color(248, 250, 252)
+    pdf.rect(145, 10, 48, 20, style="DF")
     
-    # إذا لم يُعثر على صورة اللوغو، يتم رسم مربع تنبيهي في مكانها حتى تلاحظه وتضع الصورة
-    if not logo_found:
-        pdf.set_font("Arial", "I", 8)
-        pdf.set_text_color(180, 0, 0)
-        pdf.rect(145, 10, 45, 18)
-        pdf.set_xy(145, 16)
-        pdf.cell(45, 5, "Logo Not Found", align="C")
-        pdf.set_text_color(0, 0, 0)
+    # أيقونة التبريد (شكل هندسي ثلجي مصغر) داخل الشعار
+    pdf.set_fill_color(14, 116, 144)
+    pdf.rect(149, 14, 4, 12, style="F")
+    pdf.rect(156, 14, 4, 12, style="F")
+    
+    # نص الشعار البرمجي
+    if os.path.exists(font_path):
+        pdf.set_font("Amiri", "", 10)
+    else:
+        pdf.set_font("Arial", "B", 9)
+    
+    pdf.set_xy(162, 13)
+    pdf.set_text_color(15, 23, 42)
+    pdf.cell(28, 6, ar("❄️ معمل الرافدين"), align="R")
+    
+    pdf.set_font("Arial", "", 7)
+    pdf.set_xy(162, 20)
+    pdf.set_text_color(100, 116, 139)
+    pdf.cell(28, 5, "OFFICIAL RECEIPT", align="R")
 
-    pdf.set_y(32)
-
+    # --- ترويسة السند الأساسية ---
+    pdf.set_y(34)
     if os.path.exists(font_path):
         pdf.add_font("Amiri", "", font_path)
         pdf.set_font("Amiri", "", 15)
