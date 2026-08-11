@@ -305,18 +305,19 @@ def generate_payment_pdf(
     pdf.set_margins(12, 12, 12)
     pdf.add_page()
 
-    # --- رسم اللوجو الاحترافي برمجياً مباشرة (بدون الحاجة لملف خارجي) ---
-    # إطار الشعار
+    # --- تسجيل الخط العربي أولاً قبل استخدامه ---
+    if os.path.exists(font_path):
+        pdf.add_font("Amiri", "", font_path)
+
+    # --- رسم اللوجو الاحترافي برمجياً مباشرة ---
     pdf.set_draw_color(15, 23, 42)
     pdf.set_fill_color(248, 250, 252)
     pdf.rect(145, 10, 48, 20, style="DF")
     
-    # أيقونة التبريد (شكل هندسي ثلجي مصغر) داخل الشعار
     pdf.set_fill_color(14, 116, 144)
     pdf.rect(149, 14, 4, 12, style="F")
     pdf.rect(156, 14, 4, 12, style="F")
     
-    # نص الشعار البرمجي
     if os.path.exists(font_path):
         pdf.set_font("Amiri", "", 10)
     else:
@@ -334,13 +335,13 @@ def generate_payment_pdf(
     # --- ترويسة السند الأساسية ---
     pdf.set_y(34)
     if os.path.exists(font_path):
-        pdf.add_font("Amiri", "", font_path)
         pdf.set_font("Amiri", "", 15)
     else:
         pdf.set_font("Arial", "B", 14)
 
     pdf.set_text_color(0, 0, 0)
     pdf.cell(0, 8, ar(factory_name), ln=True, align="C")
+    
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 13)
     pdf.cell(0, 7, ar("سند قبض"), ln=True, align="C")
     pdf.ln(3)
@@ -354,7 +355,6 @@ def generate_payment_pdf(
     amount_iqd = int(round(amount_usd * exchange_rate))
     amount_in_words = f"مبلغ وقدره: {number_to_arabic_words(amount_iqd)} دينار عراقي فقط لا غير"
     
-    # --- تظليل هادئ ومنسق لخانة المبلغ المكتوب بالحروف ---
     pdf.set_fill_color(240, 243, 246)
     pdf.cell(186, 7, ar(amount_in_words), border=1, align="R", fill=True, ln=True)
     pdf.set_fill_color(255, 255, 255)
@@ -373,7 +373,6 @@ def generate_payment_pdf(
     
     pdf.ln(4)
 
-    # --- خانة توقيع وختم القابض (بارتفاع 3.5 سم) ---
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
     pdf.cell(186, 7, ar("توقيع وختم القابض:"), ln=True, align="R")
     sign_box_y = pdf.get_y()
@@ -1001,7 +1000,7 @@ if st.session_state.role == "admin":
 
         if st.button("🛠️ حفظ النموذج الجديد", use_container_width=True):
             if new_model_name and selected_ingredients:
-                factory_data["bom"][new_model_name]	= selected_ingredients
+                factory_data["bom"][new_model_name] = selected_ingredients
                 if new_model_name not in factory_data["finished_goods"]:
                     factory_data["finished_goods"][new_model_name] = 0
                 save_all_factories(all_factories)
