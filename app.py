@@ -315,11 +315,11 @@ def generate_payment_pdf(
 
     pdf.set_text_color(0, 0, 0)
     
-    # رأس السند
+    # رأس السند (تمت إزالة عبارة بالدولار الأمريكي)
     pdf.set_y(8)
     pdf.cell(0, 6, ar(factory_name), ln=True, align="C")
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
-    pdf.cell(0, 6, ar("سند قبض (بالدولار الأمريكي)"), ln=True, align="C")
+    pdf.cell(0, 6, ar("سند قبض"), ln=True, align="C")
     pdf.ln(2)
 
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 9)
@@ -332,28 +332,30 @@ def generate_payment_pdf(
     # سطر استلمت من السيد (اسم الوكيل) بأسلوب سطر واحد متصل
     pdf.cell(132, 6, ar(f"استلمت من السيد / {agent_name}"), border=1, align="R", ln=True)
     
-    # مبلغ التفقيط بدون كسور أو بوينتات مزعجة
+    # مبلغ التفقيط مع تظليل خفيف لمنع التزوير
     amount_iqd = int(round(amount_usd * exchange_rate))
     amount_in_words = f"مبلغ وقدره: {number_to_arabic_words(amount_iqd)} دينار عراقي فقط لا غير"
-    pdf.cell(132, 6, ar(amount_in_words), border=1, align="R", ln=True)
+    pdf.set_fill_color(240, 243, 246)
+    pdf.cell(132, 6, ar(amount_in_words), border=1, align="R", fill=True, ln=True)
     
-    # سعر الصرف والمبلغ المدفوع مع العزل الواضح بخط مائل ( / )
+    # سعر الصرف والمبلغ المدفوع مع تظليل للأرقام والمبالغ
     paid_iqd_val = int(round(amount_usd * exchange_rate))
     pdf.cell(66, 6, ar(f"سعر الصرف: {exchange_rate:,.0f} د.ع"), border=1, align="R")
-    pdf.cell(66, 6, ar(f"المبلغ المدفوع: ${amount_usd:,.2f}  /  {paid_iqd_val:,} د.ع"), border=1, align="R", ln=True)
+    pdf.cell(66, 6, ar(f"المبلغ المدفوع: ${amount_usd:,.2f}  /  {paid_iqd_val:,} د.ع"), border=1, align="R", fill=True, ln=True)
     
     # الملاحظات
     note_text = f"الملاحظات: {note}" if note else "الملاحظات: -"
     pdf.cell(132, 6, ar(note_text), border=1, align="R", ln=True)
     
-    # الأرصدة مع عزل واضح بالخط المائل ( / )
+    # الأرصدة مع تظليل الأرقام لتمييزها ومنع التلاعب
     rem_iqd = int(round(remaining_debt_usd * exchange_rate))
     old_iqd = int(round(old_debt_usd * exchange_rate))
-    pdf.cell(132, 6, ar(f"الرصيد السابق: ${old_debt_usd:,.2f}  /  {old_iqd:,} د.ع"), border=1, align="R", ln=True)
-    pdf.cell(132, 6, ar(f"الرصيد بعد التسديد: ${remaining_debt_usd:,.2f}  /  {rem_iqd:,} د.ع"), border=1, align="R", ln=True)
+    pdf.cell(132, 6, ar(f"الرصيد السابق: ${old_debt_usd:,.2f}  /  {old_iqd:,} د.ع"), border=1, align="R", fill=True, ln=True)
+    pdf.cell(132, 6, ar(f"الرصيد بعد التسديد: ${remaining_debt_usd:,.2f}  /  {rem_iqd:,} د.ع"), border=1, align="R", fill=True, ln=True)
     
     pdf.ln(4)
-    pdf.cell(132, 6, ar("توقيع المستلم: .........................."), ln=True, align="L")
+    # تعديل توقيع المستلم ليصبح توقيع وختم القابض
+    pdf.cell(132, 6, ar("توقيع وختم القابض: .........................."), ln=True, align="L")
     
     end_y = pdf.get_y() + 2
     pdf.set_line_width(0.5)
