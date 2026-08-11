@@ -309,7 +309,7 @@ def generate_payment_pdf(
 
     if os.path.exists(font_path):
         pdf.add_font("Amiri", "", font_path)
-        pdf.set_font("Amiri", "", 14)
+        pdf.set_font("Amiri", "", 13)
     else:
         pdf.set_font("Arial", "B", 12)
 
@@ -318,11 +318,11 @@ def generate_payment_pdf(
     # رأس السند
     pdf.set_y(8)
     pdf.cell(0, 6, ar(factory_name), ln=True, align="C")
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 12)
+    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
     pdf.cell(0, 6, ar("سند قبض (بالدولار الأمريكي)"), ln=True, align="C")
     pdf.ln(2)
 
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 10)
+    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 9)
     pdf.set_line_width(0.3)
     
     # معلومات رقم المستند والتاريخ بجانب بعضهما
@@ -345,13 +345,13 @@ def generate_payment_pdf(
     note_text = f"الملاحظات: {note}" if note else "الملاحظات: -"
     pdf.cell(132, 6, ar(note_text), border=1, align="R", ln=True)
     
-    # الأرصدة (الرصيد السابق واللاحق)
-    rem_iqd = remaining_debt_usd * exchange_rate
-    old_iqd = old_debt_usd * exchange_rate
-    pdf.cell(66, 6, ar(f"الرصيد بعد التسديد: ${remaining_debt_usd:,.2f} ({rem_iqd:,.0f} د.ع)"), border=1, align="R")
-    pdf.cell(66, 6, ar(f"الرصيد السابق: ${old_debt_usd:,.2f} ({old_iqd:,.0f} د.ع)"), border=1, align="R", ln=True)
+    # الأرصدة (تعديل لكي تأخذ عرض السطر بالكامل لتجنب أي تداخل)
+    rem_iqd = int(remaining_debt_usd * exchange_rate)
+    old_iqd = int(old_debt_usd * exchange_rate)
+    pdf.cell(132, 6, ar(f"الرصيد السابق: ${old_debt_usd:,.2f} ({old_iqd:,} د.ع)"), border=1, align="R", ln=True)
+    pdf.cell(132, 6, ar(f"الرصيد بعد التسديد: ${remaining_debt_usd:,.2f} ({rem_iqd:,} د.ع)"), border=1, align="R", ln=True)
     
-    pdf.ln(6)
+    pdf.ln(4)
     pdf.cell(132, 6, ar("توقيع المستلم: .........................."), ln=True, align="L")
     
     end_y = pdf.get_y() + 2
