@@ -308,7 +308,6 @@ def generate_payment_pdf(
     pdf.set_margins(12, 12, 12)
     pdf.add_page()
 
-    # محاولة إضافة شعار "الرافدين" في أعلى سند القبض مع التعامل الآمن إذا لم يُرفع الشعار كملف
     logo_path = "rafidain_logo.jpg"
     try:
         if os.path.exists(logo_path):
@@ -1004,7 +1003,7 @@ if st.session_state.role == "admin":
                 label="📥 تنزيل ملف Excel",
                 data=buffer.getvalue(),
                 file_name=f"تقرير_{current_factory_name}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                mime="application/vnd.openpyxlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
             )
         except Exception:
