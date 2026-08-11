@@ -305,16 +305,28 @@ def generate_payment_pdf(
     pdf.set_margins(12, 12, 12)
     pdf.add_page()
 
-    # --- إضافة الشعار (اللوغو) في أعلى يمين وصل سند القبض مع ضبط الحجم والموقع ---
-    logo_path = "rafidain_logo.jpg"
-    try:
+    # --- البحث عن ملف اللوغو بأكثر من امتداد شائع لضمان ظهوره ---
+    logo_found = False
+    for ext in ["jpg", "jpeg", "png"]:
+        logo_path = f"rafidain_logo.{ext}"
         if os.path.exists(logo_path):
-            pdf.image(logo_path, x=135, y=10, w=55)
-            pdf.set_y(32)
-        else:
-            pdf.set_y(12)
-    except Exception:
-        pdf.set_y(12)
+            try:
+                pdf.image(logo_path, x=145, y=10, w=45)
+                logo_found = True
+                break
+            except Exception:
+                pass
+    
+    # إذا لم يُعثر على صورة اللوغو، يتم رسم مربع تنبيهي في مكانها حتى تلاحظه وتضع الصورة
+    if not logo_found:
+        pdf.set_font("Arial", "I", 8)
+        pdf.set_text_color(180, 0, 0)
+        pdf.rect(145, 10, 45, 18)
+        pdf.set_xy(145, 16)
+        pdf.cell(45, 5, "Logo Not Found", align="C")
+        pdf.set_text_color(0, 0, 0)
+
+    pdf.set_y(32)
 
     if os.path.exists(font_path):
         pdf.add_font("Amiri", "", font_path)
