@@ -518,10 +518,18 @@ if st.session_state.role == "admin":
             today_sales = sales_df[sales_df["date"].dt.strftime("%Y-%m-%d") == today_str]
             month_sales = sales_df[sales_df["date"].dt.strftime("%Y-%m") == current_month_str]
 
-            today_sales_count = today_sales["items_count"].sum() if not today_sales.empty else 0
-            today_revenue_usd = today_sales["total_usd"].sum() if not today_sales.empty else 0
-            month_sales_count = month_sales["items_count"].sum() if not month_sales.empty else 0
-            month_revenue_usd = month_sales["total_usd"].sum() if not month_sales.empty else 0
+            # تم إضافة التحقق من الأعمدة هنا لتجنب خطأ KeyError نهائياً
+            if not today_sales.empty:
+                if "items_count" in today_sales.columns:
+                    today_sales_count = today_sales["items_count"].sum()
+                if "total_usd" in today_sales.columns:
+                    today_revenue_usd = today_sales["total_usd"].sum()
+            
+            if not month_sales.empty:
+                if "items_count" in month_sales.columns:
+                    month_sales_count = month_sales["items_count"].sum()
+                if "total_usd" in month_sales.columns:
+                    month_revenue_usd = month_sales["total_usd"].sum()
 
         total_debts_usd = sum(
             agent.get("debt_usd", agent.get("debt", 0.0))
