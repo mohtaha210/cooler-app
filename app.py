@@ -1,4 +1,3 @@
-إليك كود التطبيق (app.py) الكامل والمحدث، مضافاً إليه التعديل الخاص برسم خطوط مائلة أمنية داخل حقول المبالغ والتفقيط في سند القبض لمنع التلاعب والتزوير:
 from datetime import datetime
 import io
 import json
@@ -20,7 +19,7 @@ def number_to_arabic_words(num):
     teens = ["عشرة", "أحد عشر", "اثنا عشر", "ثلاثة عشر", "أربعة عشر", "خمسة عشر", "ستة عشر", "سبعة عشر", "ثمانية عشر", "تسعة عشر"]
     tens = ["", "عشرة", "عشرون", "ثلاثون", "أربعون", "خمسون", "ستون", "سبعون", "ثمانون", "تسعون"]
     hundreds = ["", "مائة", "مائتان", "ثلاثمائة", "أربعمائة", "خمسمائة", "ستمائة", "سبعمائة", "ثمانمائة", "تسعمائة"]
-
+    
     def convert_group(n):
         res = []
         h = n // 100
@@ -322,32 +321,31 @@ def generate_payment_pdf(
     pdf = FPDF(orientation="P", unit="mm", format="A5")
     pdf.set_margins(8, 8, 8)
     pdf.add_page()
-    
     if os.path.exists(font_path):
         pdf.add_font("Amiri", "", font_path)
         pdf.set_font("Amiri", "", 13)
     else:
         pdf.set_font("Arial", "B", 12)
-        
+
     pdf.set_text_color(0, 0, 0)
-    
+
     # رأس السند
     pdf.set_y(8)
     pdf.cell(0, 6, ar(factory_name), ln=True, align="C")
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
     pdf.cell(0, 6, ar("سند قبض"), ln=True, align="C")
     pdf.ln(2)
-    
+
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 9)
     pdf.set_line_width(0.3)
-    
+
     # معلومات رقم المستند والتاريخ
     pdf.cell(66, 6, ar(f"رقم المستند: {receipt_no}"), border=1, align="R")
     pdf.cell(66, 6, ar(f"التاريخ: {date_str}"), border=1, align="R", ln=True)
-    
+
     # اسم الوكيل
     pdf.cell(132, 6, ar(f"استلمت من السيد / {agent_name}"), border=1, align="R", ln=True)
-    
+
     # --- مبلغ التفقيط مع خطوط مائلة أمنية لمنع التزوير ---
     amount_iqd = int(round(amount_usd * exchange_rate))
     amount_in_words = f"مبلغ وقدره: {number_to_arabic_words(amount_iqd)} دينار عراقي فقط لا غير"
@@ -356,15 +354,15 @@ def generate_payment_pdf(
     start_x = pdf.get_x()
     start_y = pdf.get_y()
     pdf.cell(132, 6, "", border=1, fill=True, ln=True)
-    
+
     # رسم خطوط مائلة للأمان داخل الخلية
     pdf.set_line_width(0.1)
     pdf.set_draw_color(180, 190, 200)
     for i in range(8, 132, 6):
         pdf.line(start_x + i, start_y, start_x + i - 4, start_y + 6)
+    
     pdf.set_draw_color(0, 0, 0)
     pdf.set_line_width(0.3)
-    
     pdf.set_xy(start_x, start_y)
     pdf.cell(132, 6, ar(amount_in_words), border=0, align="R", ln=True)
 
@@ -380,16 +378,16 @@ def generate_payment_pdf(
     pdf.set_draw_color(180, 190, 200)
     for i in range(8, 66, 6):
         pdf.line(sx2 + i, sy2, sx2 + i - 4, sy2 + 6)
+        
     pdf.set_draw_color(0, 0, 0)
     pdf.set_line_width(0.3)
-    
     pdf.set_xy(sx2, sy2)
     pdf.cell(66, 6, ar(f"المبلغ المدفوع: ${amount_usd:,.2f} / {paid_iqd_val:,} د.ع"), border=0, align="R")
-    
+
     # الملاحظات
     note_text = f"الملاحظات: {note}" if note else "الملاحظات: -"
     pdf.cell(132, 6, ar(note_text), border=1, align="R", ln=True)
-    
+
     # الأرصدة (تظليل أرقام الديون مع خطوط مائلة أمنية)
     rem_iqd = int(round(remaining_debt_usd * exchange_rate))
     old_iqd = int(round(old_debt_usd * exchange_rate))
@@ -400,14 +398,12 @@ def generate_payment_pdf(
     ]:
         sx3, sy3 = pdf.get_x(), pdf.get_y()
         pdf.cell(132, 6, "", border=1, fill=True, ln=True)
-        
         pdf.set_line_width(0.1)
         pdf.set_draw_color(180, 190, 200)
         for i in range(8, 132, 6):
             pdf.line(sx3 + i, sy3, sx3 + i - 4, sy3 + 6)
         pdf.set_draw_color(0, 0, 0)
         pdf.set_line_width(0.3)
-        
         pdf.set_xy(sx3, sy3)
         pdf.cell(132, 6, ar(label_text), border=0, align="R")
 
@@ -417,7 +413,6 @@ def generate_payment_pdf(
     end_y = pdf.get_y() + 2
     pdf.set_line_width(0.5)
     pdf.rect(8, 8, 132, end_y - 8)
-    
     return bytes(pdf.output())
 
 
@@ -450,6 +445,7 @@ if not st.session_state.authenticated and saved_factory and saved_user:
             st.session_state.username = saved_user
             st.session_state.role = factory_users[saved_user]["role"]
             st.session_state.user_fullname = factory_users[saved_user]["name"]
+
 
 # --- 4. شاشة تسجيل الدخول أو إنشاء حساب جديد ---
 if not st.session_state.authenticated:
@@ -505,6 +501,7 @@ if not st.session_state.authenticated:
                 st.success(f"✅ تم إنشاء [{new_factory_name}] بنجاح!")
                 st.stop()
 
+
 # --- 5. تحميل بيانات المعمل الحالي ---
 current_factory_name = st.session_state.factory_key
 if current_factory_name not in all_factories:
@@ -514,10 +511,12 @@ if current_factory_name not in all_factories:
     st.rerun()
 
 factory_data = all_factories[current_factory_name]
+
 if "finished_goods" not in factory_data:
     factory_data["finished_goods"] = {model: 0 for model in factory_data.get("bom", {}).keys()}
 if "agents" not in factory_data:
     factory_data["agents"] = {}
+
 
 # --- 6. الواجهة الرئيسية وشريط المستخدم ---
 st.title(f"❄️ {current_factory_name}")
@@ -555,6 +554,7 @@ else:
         "🏭 تسجيل إنتاج براد",
         "📦 المخزون الحالي",
     ])
+
 
 # --- تبويب التقارير (للمدير فقط) ---
 if st.session_state.role == "admin":
@@ -605,6 +605,7 @@ if st.session_state.role == "admin":
             columns=["نوع البراد", "الكمية المتاحة للبيع"],
         )
         st.dataframe(fg_df, use_container_width=True)
+
 
 # --- تبويب إدارة الوكلاء والديون ---
 tab_agents = tabs[1] if st.session_state.role == "admin" else tabs[1]
@@ -689,7 +690,6 @@ with tab_agents:
                     receipt_no=receipt_no,
                     note=pay_note
                 )
-
                 st.success(f"✅ تم الخصم. الدين المتبقي: ${new_debt:,.2f}")
                 st.download_button(
                     label="📥 تنزيل سند القبض (PDF)",
@@ -727,6 +727,7 @@ with tab_agents:
                 st.dataframe(trans_df, use_container_width=True)
             else:
                 st.write("لا توجد معاملات مسجلة.")
+
 
 # --- تبويب بيع البرادات وإصدار قائمة حساب ---
 tab_receipt = tabs[2] if st.session_state.role == "admin" else tabs[0]
@@ -816,6 +817,7 @@ with tab_receipt:
                 st.error("يرجى تحديد كمية براد واحد على الأقل.")
             else:
                 receipt_no = factory_data.get("receipt_counter", 1001)
+
                 for item in selected_items:
                     factory_data["finished_goods"][item["model"]] -= item["count"]
 
@@ -867,6 +869,7 @@ with tab_receipt:
                     use_container_width=True,
                 )
 
+
 # --- تبويب تسجيل الإنتاج ---
 tab_prod = tabs[3] if st.session_state.role == "admin" else tabs[2]
 with tab_prod:
@@ -908,6 +911,7 @@ with tab_prod:
                 st.success(f"✅ تم إنتاج ({count}) من [{model}] بنجاح!")
                 st.rerun()
 
+
 # --- تبويب المخزون ---
 tab_inv = tabs[4] if st.session_state.role == "admin" else tabs[3]
 with tab_inv:
@@ -938,7 +942,6 @@ with tab_inv:
                 save_all_factories(all_factories)
                 st.success("✅ تم تحديث المخزون بنجاح!")
                 st.rerun()
-
         with col_btn2:
             with st.popover("⚠️ تصفير جميع المواد"):
                 st.warning("هل أنت متأكد؟ سيتم جعل جميع المواد الأولية (0)!")
@@ -956,13 +959,13 @@ with tab_inv:
             columns=["نوع البراد", "العدد المتوفر للبيع"],
         )
         st.dataframe(fg_df, use_container_width=True)
-
         st.subheader("🧱 المواد الخام")
         df = pd.DataFrame(
             list(factory_data["inventory"].items()),
             columns=["اسم المادة الخام", "الكمية المتوفرة"],
         )
         st.dataframe(df, use_container_width=True)
+
 
 # --- تبويبات الإدارة المتقدمة (للمدير فقط) ---
 if st.session_state.role == "admin":
@@ -996,6 +999,7 @@ if st.session_state.role == "admin":
         st.header("تصدير التقارير إلى Excel")
         df_export = pd.DataFrame(list(factory_data["inventory"].items()), columns=["المادة الخام", "الكمية"])
         df_fg_export = pd.DataFrame(list(factory_data["finished_goods"].items()), columns=["البراد", "العدد"])
+        
         agents_export_data = [{
             "اسم الوكيل": k,
             "رقم الهاتف": v.get("phone", ""),
@@ -1036,10 +1040,11 @@ if st.session_state.role == "admin":
                     st.rerun()
 
     with tabs[8]:
-        st.header("🛠️ إدارة أنواع البرادات (BOM)")
+        st.header("🛠️ أنواع البرادات (BOM)")
         model_list = list(factory_data["bom"].keys())
         new_model_name = st.text_input("اسم نموذج البراد الجديد:")
         selected_ingredients = {}
+
         for item in factory_data["inventory"].keys():
             use_item = st.checkbox(f"يدخل فيه: {item}", key=f"add_chk_{item}")
             if use_item:
@@ -1073,4 +1078,3 @@ if st.session_state.role == "admin":
                 st.rerun()
             else:
                 st.error("يجب كتابة (DELETE) بشكل صحيح.")
-
