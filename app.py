@@ -171,12 +171,14 @@ def load_all_factories():
                         if not isinstance(ag_info, dict):
                             f_data["agents"][ag_name] = {
                                 "phone": "",
-                                "debt": 0.0,
+                                "debt_usd": 0.0,
                                 "transactions": [],
                             }
                         else:
-                            if "debt" not in ag_info:
-                                ag_info["debt"] = 0.0
+                            if "debt_usd" not in ag_info and "debt" in ag_info:
+                                ag_info["debt_usd"] = ag_info["debt"]
+                            if "debt_usd" not in ag_info:
+                                ag_info["debt_usd"] = 0.0
                             if "transactions" not in ag_info:
                                 ag_info["transactions"] = []
                             if "phone" not in ag_info:
@@ -307,49 +309,49 @@ def generate_payment_pdf(
 
     if os.path.exists(font_path):
         pdf.add_font("Amiri", "", font_path)
-        pdf.set_font("Amiri", "", 16)
+        pdf.set_font("Amiri", "", 14)
     else:
-        pdf.set_font("Arial", "B", 14)
+        pdf.set_font("Arial", "B", 12)
 
     pdf.set_text_color(0, 0, 0)
     
+    # رأس السند
     pdf.set_y(8)
     pdf.cell(0, 6, ar(factory_name), ln=True, align="C")
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 12)
     pdf.cell(0, 6, ar("سند قبض (بالدولار الأمريكي)"), ln=True, align="C")
-    pdf.ln(1)
+    pdf.ln(2)
 
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 9)
+    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 10)
     pdf.set_line_width(0.3)
     
-    pdf.cell(66, 6, ar(f"رقم المستند: {receipt_no}"), border=1, align="C")
-    pdf.cell(66, 6, ar(f"التاريخ: {date_str}"), border=1, align="C", ln=True)
+    # معلومات رقم المستند والتاريخ بجانب بعضهما
+    pdf.cell(66, 6, ar(f"رقم المستند: {receipt_no}"), border=1, align="R")
+    pdf.cell(66, 6, ar(f"التاريخ: {date_str}"), border=1, align="R", ln=True)
     
-    pdf.cell(40, 6, ar("سعر الصرف"), border=1, align="C")
-    pdf.cell(92, 6, ar("السيد"), border=1, align="C", ln=True)
+    # سطر استلمت من السيد (اسم الوكيل) بأسلوب سطر واحد متصل
+    pdf.cell(132, 6, ar(f"استلمت من السيد / {agent_name}"), border=1, align="R", ln=True)
     
-    pdf.cell(40, 6, f"{exchange_rate:,.0f} د.ع", border=1, align="C")
-    pdf.cell(92, 6, ar(agent_name), border=1, align="C", ln=True)
-    
+    # مبلغ التفقيط
     amount_iqd = int(amount_usd * exchange_rate)
-    amount_in_words = f"{number_to_arabic_words(amount_iqd)} دينار عراقي (ما يعادل ${amount_usd:,.2f}) فقط لا غير"
-    pdf.cell(132, 6, ar(amount_in_words), border=1, align="C", ln=True)
+    amount_in_words = f"مبلغ وقدره: {number_to_arabic_words(amount_iqd)} دينار عراقي (ما يعادل ${amount_usd:,.2f}) فقط لا غير"
+    pdf.cell(132, 6, ar(amount_in_words), border=1, align="R", ln=True)
     
-    pdf.cell(40, 6, f"${amount_usd:,.2f}", border=1, align="C")
-    pdf.cell(92, 6, ar("المبلغ المدفوع"), border=1, align="C", ln=True)
+    # سعر الصرف والمبلغ المدفوع
+    pdf.cell(66, 6, ar(f"سعر الصرف: {exchange_rate:,.0f} د.ع"), border=1, align="R")
+    pdf.cell(66, 6, ar(f"المبلغ المدفوع: ${amount_usd:,.2f}"), border=1, align="R", ln=True)
     
-    note_text = f"الملاحظات: {note}" if note else "الملاحظات:"
+    # الملاحظات
+    note_text = f"الملاحظات: {note}" if note else "الملاحظات: -"
     pdf.cell(132, 6, ar(note_text), border=1, align="R", ln=True)
     
-    pdf.cell(66, 6, ar("الرصيد بعد التسديد ($ / د.ع)"), border=1, align="C")
-    pdf.cell(66, 6, ar("الرصيد السابق ($ / د.ع)"), border=1, align="C", ln=True)
-    
+    # الأرصدة (الرصيد السابق واللاحق)
     rem_iqd = remaining_debt_usd * exchange_rate
     old_iqd = old_debt_usd * exchange_rate
-    pdf.cell(66, 6, f"${remaining_debt_usd:,.2f} / {rem_iqd:,.0f}", border=1, align="C")
-    pdf.cell(66, 6, f"${old_debt_usd:,.2f} / {old_iqd:,.0f}", border=1, align="C", ln=True)
+    pdf.cell(66, 6, ar(f"الرصيد بعد التسديد: ${remaining_debt_usd:,.2f} ({rem_iqd:,.0f} د.ع)"), border=1, align="R")
+    pdf.cell(66, 6, ar(f"الرصيد السابق: ${old_debt_usd:,.2f} ({old_iqd:,.0f} د.ع)"), border=1, align="R", ln=True)
     
-    pdf.ln(4)
+    pdf.ln(6)
     pdf.cell(132, 6, ar("توقيع المستلم: .........................."), ln=True, align="L")
     
     end_y = pdf.get_y() + 2
@@ -518,7 +520,6 @@ if st.session_state.role == "admin":
             today_sales = sales_df[sales_df["date"].dt.strftime("%Y-%m-%d") == today_str]
             month_sales = sales_df[sales_df["date"].dt.strftime("%Y-%m") == current_month_str]
 
-            # تم إضافة التحقق من الأعمدة هنا لتجنب خطأ KeyError نهائياً
             if not today_sales.empty:
                 if "items_count" in today_sales.columns:
                     today_sales_count = today_sales["items_count"].sum()
