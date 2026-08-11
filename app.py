@@ -285,13 +285,13 @@ def generate_receipt_pdf(
     remaining_iqd = remaining_amount_usd * exchange_rate
 
     pdf.set_fill_color(241, 245, 249)
-    pdf.cell(50, 7, f"${grand_total_usd:,.2f} / {grand_total_iqd:,.0f} د.ع", border=1, align="C", fill=True)
+    pdf.cell(50, 7, f"${grand_total_usd:,.2f}  /  {grand_total_iqd:,.0f} د.ع", border=1, align="C", fill=True)
     pdf.cell(140, 7, ar("المبلغ الإجمالي للفاتورة"), border=1, align="C", fill=True)
     pdf.ln()
-    pdf.cell(50, 7, f"${paid_amount_usd:,.2f} / {paid_iqd:,.0f} د.ع", border=1, align="C")
+    pdf.cell(50, 7, f"${paid_amount_usd:,.2f}  /  {paid_iqd:,.0f} د.ع", border=1, align="C")
     pdf.cell(140, 7, ar("المبلغ المدفوع نقدياً"), border=1, align="C")
     pdf.ln()
-    pdf.cell(50, 7, f"${remaining_amount_usd:,.2f} / {remaining_iqd:,.0f} د.ع", border=1, align="C")
+    pdf.cell(50, 7, f"${remaining_amount_usd:,.2f}  /  {remaining_iqd:,.0f} د.ع", border=1, align="C")
     pdf.cell(140, 7, ar("المبلغ المتبقي"), border=1, align="C")
     pdf.ln(15)
 
@@ -332,24 +332,25 @@ def generate_payment_pdf(
     # سطر استلمت من السيد (اسم الوكيل) بأسلوب سطر واحد متصل
     pdf.cell(132, 6, ar(f"استلمت من السيد / {agent_name}"), border=1, align="R", ln=True)
     
-    # مبلغ التفقيط
-    amount_iqd = int(amount_usd * exchange_rate)
-    amount_in_words = f"مبلغ وقدره: {number_to_arabic_words(amount_iqd)} دينار عراقي (ما يعادل ${amount_usd:,.2f}) فقط لا غير"
+    # مبلغ التفقيط بدون كسور أو بوينتات مزعجة
+    amount_iqd = int(round(amount_usd * exchange_rate))
+    amount_in_words = f"مبلغ وقدره: {number_to_arabic_words(amount_iqd)} دينار عراقي فقط لا غير"
     pdf.cell(132, 6, ar(amount_in_words), border=1, align="R", ln=True)
     
-    # سعر الصرف والمبلغ المدفوع
+    # سعر الصرف والمبلغ المدفوع مع العزل الواضح بخط مائل ( / )
+    paid_iqd_val = int(round(amount_usd * exchange_rate))
     pdf.cell(66, 6, ar(f"سعر الصرف: {exchange_rate:,.0f} د.ع"), border=1, align="R")
-    pdf.cell(66, 6, ar(f"المبلغ المدفوع: ${amount_usd:,.2f}"), border=1, align="R", ln=True)
+    pdf.cell(66, 6, ar(f"المبلغ المدفوع: ${amount_usd:,.2f}  /  {paid_iqd_val:,} د.ع"), border=1, align="R", ln=True)
     
     # الملاحظات
     note_text = f"الملاحظات: {note}" if note else "الملاحظات: -"
     pdf.cell(132, 6, ar(note_text), border=1, align="R", ln=True)
     
-    # الأرصدة (تعديل لكي تأخذ عرض السطر بالكامل لتجنب أي تداخل)
-    rem_iqd = int(remaining_debt_usd * exchange_rate)
-    old_iqd = int(old_debt_usd * exchange_rate)
-    pdf.cell(132, 6, ar(f"الرصيد السابق: ${old_debt_usd:,.2f} ({old_iqd:,} د.ع)"), border=1, align="R", ln=True)
-    pdf.cell(132, 6, ar(f"الرصيد بعد التسديد: ${remaining_debt_usd:,.2f} ({rem_iqd:,} د.ع)"), border=1, align="R", ln=True)
+    # الأرصدة مع عزل واضح بالخط المائل ( / )
+    rem_iqd = int(round(remaining_debt_usd * exchange_rate))
+    old_iqd = int(round(old_debt_usd * exchange_rate))
+    pdf.cell(132, 6, ar(f"الرصيد السابق: ${old_debt_usd:,.2f}  /  {old_iqd:,} د.ع"), border=1, align="R", ln=True)
+    pdf.cell(132, 6, ar(f"الرصيد بعد التسديد: ${remaining_debt_usd:,.2f}  /  {rem_iqd:,} د.ع"), border=1, align="R", ln=True)
     
     pdf.ln(4)
     pdf.cell(132, 6, ar("توقيع المستلم: .........................."), ln=True, align="L")
@@ -745,7 +746,7 @@ with tab_receipt:
                 })
 
         grand_total_iqd = grand_total_usd * exchange_rate
-        st.markdown(f"### 💰 الإجمالي الكلي: `${grand_total_usd:,.2f}` (ما يعادل `{grand_total_iqd:,.0f}` د.ع)")
+        st.markdown(f"### 💰 الإجمالي الكلي: `${grand_total_usd:,.2f}`  /  `{grand_total_iqd:,.0f}` د.ع")
 
         if customer_type == "وكيل مسجل (بالأجل / نقد جزئي)":
             paid_amount_usd = st.number_input(
