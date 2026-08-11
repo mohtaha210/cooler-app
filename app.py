@@ -11,9 +11,11 @@ import streamlit as st
 
 DATA_FILE = "multi_factory_data.json"
 
+# --- 0. دالة تحويل الأرقام إلى نصوص عربية (تفقيط لسند القبض) ---
 def number_to_arabic_words(num):
     if num == 0:
         return "صفر"
+    
     ones = ["", "واحد", "اثنان", "ثلاثة", "أربعة", "خمسة", "ستة", "سبعة", "ثمانية", "تسعة"]
     teens = ["عشرة", "أحد عشر", "اثنا عشر", "ثلاثة عشر", "أربعة عشر", "خمسة عشر", "ستة عشر", "سبعة عشر", "ثمانية عشر", "تسعة عشر"]
     tens = ["", "عشرة", "عشرون", "ثلاثون", "أربعون", "خمسون", "ستون", "سبعون", "ثمانون", "تسعون"]
@@ -38,50 +40,40 @@ def number_to_arabic_words(num):
                 else:
                     res.append(tens[t])
         return " و ".join(res)
-
+    
     parts = []
+    
     b = num // 1000000000
     if b > 0:
-        if b == 1:
-            parts.append("مليار")
-        elif b == 2:
-            parts.append("ملياران")
-        elif 3 <= b <= 10:
-            parts.append(convert_group(b) + " مليارات")
-        else:
-            parts.append(convert_group(b) + " مليار")
-        num %= 1000000000
-
+        if b == 1: parts.append("مليار")
+        elif b == 2: parts.append("ملياران")
+        elif 3 <= b <= 10: parts.append(convert_group(b) + " مليارات")
+        else: parts.append(convert_group(b) + " مليار")
+    num %= 1000000000
+    
     m = num // 1000000
     if m > 0:
-        if m == 1:
-            parts.append("مليون")
-        elif m == 2:
-            parts.append("مليونان")
-        elif 3 <= m <= 10:
-            parts.append(convert_group(m) + " ملايين")
-        else:
-            parts.append(convert_group(m) + " مليون")
-        num %= 1000000
-
+        if m == 1: parts.append("مليون")
+        elif m == 2: parts.append("مليونان")
+        elif 3 <= m <= 10: parts.append(convert_group(m) + " ملايين")
+        else: parts.append(convert_group(m) + " مليون")
+    num %= 1000000
+    
     k = num // 1000
     if k > 0:
-        if k == 1:
-            parts.append("ألف")
-        elif k == 2:
-            parts.append("ألفان")
-        elif 3 <= k <= 10:
-            parts.append(convert_group(k) + " آلاف")
-        else:
-            parts.append(convert_group(k) + " ألف")
-        num %= 1000
-
+        if k == 1: parts.append("ألف")
+        elif k == 2: parts.append("ألفان")
+        elif 3 <= k <= 10: parts.append(convert_group(k) + " آلاف")
+        else: parts.append(convert_group(k) + " ألف")
+    num %= 1000
+    
     if num > 0:
         parts.append(convert_group(num))
-
+        
     return " و ".join(parts).strip()
 
 
+# --- 1. إدارة ملف البيانات والتخزين الدائم للنظام ---
 def get_default_factory_data(factory_name, admin_user, admin_pass):
     return {
         "info": {"factory_name": factory_name},
@@ -164,32 +156,34 @@ def load_all_factories():
         try:
             with open(DATA_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            for f_name, f_data in data.items():
-                if "finished_goods" not in f_data:
-                    f_data["finished_goods"] = {model: 0 for model in f_data.get("bom", {}).keys()}
-                if "agents" not in f_data:
-                    f_data["agents"] = {}
-                if "sales_history" not in f_data:
-                    f_data["sales_history"] = []
-                if "production_history" not in f_data:
-                    f_data["production_history"] = []
-                for ag_name, ag_info in f_data["agents"].items():
-                    if not isinstance(ag_info, dict):
-                        f_data["agents"][ag_name] = {
-                            "phone": "",
-                            "debt_usd": 0.0,
-                            "transactions": [],
+                for f_name, f_data in data.items():
+                    if "finished_goods" not in f_data:
+                        f_data["finished_goods"] = {
+                            model: 0 for model in f_data.get("bom", {}).keys()
                         }
-                    else:
-                        if "debt_usd" not in ag_info and "debt" in ag_info:
-                            ag_info["debt_usd"] = ag_info["debt"]
-                        if "debt_usd" not in ag_info:
-                            ag_info["debt_usd"] = 0.0
-                        if "transactions" not in ag_info:
-                            ag_info["transactions"] = []
-                        if "phone" not in ag_info:
-                            ag_info["phone"] = ""
-            return data
+                    if "agents" not in f_data:
+                        f_data["agents"] = {}
+                    if "sales_history" not in f_data:
+                        f_data["sales_history"] = []
+                    if "production_history" not in f_data:
+                        f_data["production_history"] = []
+                    for ag_name, ag_info in f_data["agents"].items():
+                        if not isinstance(ag_info, dict):
+                            f_data["agents"][ag_name] = {
+                                "phone": "",
+                                "debt_usd": 0.0,
+                                "transactions": [],
+                            }
+                        else:
+                            if "debt_usd" not in ag_info and "debt" in ag_info:
+                                ag_info["debt_usd"] = ag_info["debt"]
+                            if "debt_usd" not in ag_info:
+                                ag_info["debt_usd"] = 0.0
+                            if "transactions" not in ag_info:
+                                ag_info["transactions"] = []
+                            if "phone" not in ag_info:
+                                ag_info["phone"] = ""
+                return data
         except Exception:
             return {}
     else:
@@ -201,6 +195,7 @@ def save_all_factories(data):
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 
+# --- 2. دوال الطباعة والـ PDF ---
 def ar(text):
     if not text:
         return ""
@@ -214,13 +209,12 @@ def ensure_arabic_font():
     if not os.path.exists(font_path):
         try:
             url = "https://github.com/google/fonts/raw/main/ofl/amiri/Amiri-Regular.ttf"
-            response = requests.get(url, timeout=5)
-            if response.status_code == 200:
-                with open(font_path, "wb") as f:
-                    f.write(response.content)
-        except Exception:
-            pass
-    return font_path if os.path.exists(font_path) else None
+            response = requests.get(url, timeout=10)
+            with open(font_path, "wb") as f:
+                f.write(response.content)
+        except Exception as e:
+            st.error(f"خطأ في تحميل الخط العربي: {e}")
+    return font_path
 
 
 def generate_receipt_pdf(
@@ -235,42 +229,35 @@ def generate_receipt_pdf(
     receipt_no,
 ):
     font_path = ensure_arabic_font()
-    pdf = FPDF()
+    pdf = FPDF(orientation="P", unit="mm", format="A4")
+    pdf.set_margins(12, 12, 12)
     pdf.add_page()
-    
-    if font_path:
+
+    if os.path.exists(font_path):
         pdf.add_font("Amiri", "", font_path)
-        pdf.set_font("Amiri", "", 20)
+        pdf.set_font("Amiri", "", 22)
     else:
-        pdf.set_font("Arial", "B", 16)
+        pdf.set_font("Arial", "B", 18)
 
     pdf.set_text_color(30, 41, 59)
-    pdf.cell(0, 10, ar(factory_name), ln=True, align="C")
-    
-    if font_path:
-        pdf.set_font("Amiri", "", 16)
-    else:
-        pdf.set_font("Arial", "", 14)
-        
+    pdf.cell(0, 12, ar(factory_name), ln=True, align="C")
+    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 16)
     pdf.cell(0, 8, ar("قائمة حساب (بالدولار الأمريكي)"), ln=True, align="C")
     pdf.ln(4)
 
-    if font_path:
-        pdf.set_font("Amiri", "", 10)
-    else:
-        pdf.set_font("Arial", "", 10)
-        
+    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
     pdf.set_text_color(51, 65, 85)
-    pdf.cell(0, 6, ar(f"رقم القائمة: #{receipt_no}"), ln=True, align="R")
-    pdf.cell(0, 6, ar(f"التاريخ: {date_str}"), ln=True, align="R")
-    pdf.cell(0, 6, ar(f"اسم العميل / الوكيل: {customer_name}"), ln=True, align="R")
-    pdf.cell(0, 6, ar(f"سعر صرف الدولار المعتمد: {exchange_rate:,.0f} د.ع"), ln=True, align="R")
-    pdf.ln(4)
+    pdf.cell(0, 7, ar(f"رقم القائمة: #{receipt_no}"), ln=True, align="R")
+    pdf.cell(0, 7, ar(f"التاريخ: {date_str}"), ln=True, align="R")
+    pdf.cell(0, 7, ar(f"اسم العميل / الوكيل: {customer_name}"), ln=True, align="R")
+    pdf.cell(0, 7, ar(f"سعر صرف الدولار المعتمد: {exchange_rate:,.0f} د.ع"), ln=True, align="R")
+    pdf.ln(6)
 
     if items_data:
         pdf.set_fill_color(30, 41, 59)
         pdf.set_text_color(255, 255, 255)
-        col_widths = [35, 40, 20, 35, 60]
+
+        col_widths = [45, 45, 25, 45, 86]
         headers = [
             ar("الإجمالي ($)"),
             ar("السعر ($)"),
@@ -279,18 +266,19 @@ def generate_receipt_pdf(
             ar("نوع البراد"),
         ]
         for i, h in enumerate(headers):
-            pdf.cell(col_widths[i], 8, h, border=1, align="C", fill=True)
+            pdf.cell(col_widths[i], 9, h, border=1, align="C", fill=True)
         pdf.ln()
 
         pdf.set_fill_color(255, 255, 255)
         pdf.set_text_color(33, 37, 41)
+
         for item in items_data:
             item_total_iqd = item['total_usd'] * exchange_rate
-            pdf.cell(col_widths[0], 8, f"${item['total_usd']:,.2f}", border=1, align="C")
-            pdf.cell(col_widths[1], 8, f"${item['price_usd']:,.2f}", border=1, align="C")
-            pdf.cell(col_widths[2], 8, str(item["count"]), border=1, align="C")
-            pdf.cell(col_widths[3], 8, f"{item_total_iqd:,.0f}", border=1, align="C")
-            pdf.cell(col_widths[4], 8, ar(item["model"]), border=1, align="C")
+            pdf.cell(col_widths[0], 9, f"${item['total_usd']:,.2f}", border=1, align="C")
+            pdf.cell(col_widths[1], 9, f"${item['price_usd']:,.2f}", border=1, align="C")
+            pdf.cell(col_widths[2], 9, str(item["count"]), border=1, align="C")
+            pdf.cell(col_widths[3], 9, f"{item_total_iqd:,.0f}", border=1, align="C")
+            pdf.cell(col_widths[4], 9, ar(item["model"]), border=1, align="C")
             pdf.ln()
 
     grand_total_iqd = grand_total_usd * exchange_rate
@@ -298,128 +286,113 @@ def generate_receipt_pdf(
     remaining_iqd = remaining_amount_usd * exchange_rate
 
     pdf.set_fill_color(241, 245, 249)
-    pdf.cell(50, 7, f"${grand_total_usd:,.2f} / {grand_total_iqd:,.0f} د.ع", border=1, align="C", fill=True)
-    pdf.cell(140, 7, ar("المبلغ الإجمالي للفاتورة"), border=1, align="C", fill=True)
+    pdf.cell(60, 8, f"${grand_total_usd:,.2f}  /  {grand_total_iqd:,.0f} د.ع", border=1, align="C", fill=True)
+    pdf.cell(136, 8, ar("المبلغ الإجمالي للفاتورة"), border=1, align="C", fill=True)
     pdf.ln()
-    pdf.cell(50, 7, f"${paid_amount_usd:,.2f} / {paid_iqd:,.0f} د.ع", border=1, align="C")
-    pdf.cell(140, 7, ar("المبلغ المدفوع نقدياً"), border=1, align="C")
+    pdf.cell(60, 8, f"${paid_amount_usd:,.2f}  /  {paid_iqd:,.0f} د.ع", border=1, align="C")
+    pdf.cell(136, 8, ar("المبلغ المدفوع نقدياً"), border=1, align="C")
     pdf.ln()
-    pdf.cell(50, 7, f"${remaining_amount_usd:,.2f} / {remaining_iqd:,.0f} د.ع", border=1, align="C")
-    pdf.cell(140, 7, ar("المبلغ المتبقي"), border=1, align="C")
+    pdf.cell(60, 8, f"${remaining_amount_usd:,.2f}  /  {remaining_iqd:,.0f} د.ع", border=1, align="C")
+    pdf.cell(136, 8, ar("المبلغ المتبقي"), border=1, align="C")
     pdf.ln(15)
 
-    pdf.cell(0, 6, ar("توقيع المستلم: .........................."), ln=True, align="L")
+    pdf.cell(0, 7, ar("توقيع المستلم: .........................."), ln=True, align="L")
     return bytes(pdf.output())
 
 
 def generate_payment_pdf(
-    factory_name,
-    agent_name,
-    date_str,
-    amount_usd,
-    remaining_debt_usd,
-    old_debt_usd,
-    exchange_rate,
-    receipt_no,
-    note=""
+    factory_name, agent_name, date_str, amount_usd, remaining_debt_usd, old_debt_usd, exchange_rate, receipt_no, note=""
 ):
     font_path = ensure_arabic_font()
-    pdf = FPDF(orientation="P", unit="mm", format="A5")
-    pdf.set_margins(8, 8, 8)
+    pdf = FPDF(orientation="P", unit="mm", format="A4")
+    pdf.set_margins(12, 12, 12)
     pdf.add_page()
-    
-    if font_path:
+
+    # محاولة إضافة شعار "الرافدين" في أعلى سند القبض مع التعامل الآمن إذا لم يُرفع الشعار كملف
+    logo_path = "rafidain_logo.jpg"
+    try:
+        if os.path.exists(logo_path):
+            pdf.image(logo_path, x=75, y=10, w=60)
+            pdf.set_y(32)
+        else:
+            pdf.set_y(12)
+    except Exception:
+        pdf.set_y(12)
+
+    if os.path.exists(font_path):
         pdf.add_font("Amiri", "", font_path)
-        pdf.set_font("Amiri", "", 13)
+        pdf.set_font("Amiri", "", 15)
     else:
-        pdf.set_font("Arial", "B", 12)
+        pdf.set_font("Arial", "B", 14)
 
     pdf.set_text_color(0, 0, 0)
-    pdf.set_y(8)
-    pdf.cell(0, 6, ar(factory_name), ln=True, align="C")
     
-    if font_path:
-        pdf.set_font("Amiri", "", 11)
-    else:
-        pdf.set_font("Arial", "", 10)
-        
-    pdf.cell(0, 6, ar("سند قبض"), ln=True, align="C")
-    pdf.ln(2)
+    pdf.cell(0, 8, ar(factory_name), ln=True, align="C")
+    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 13)
+    pdf.cell(0, 7, ar("سند قبض"), ln=True, align="C")
+    pdf.ln(3)
 
-    if font_path:
-        pdf.set_font("Amiri", "", 9)
-    else:
-        pdf.set_font("Arial", "", 9)
-        
+    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
     pdf.set_line_width(0.3)
-    pdf.cell(66, 6, ar(f"رقم المستند: {receipt_no}"), border=1, align="R")
-    pdf.cell(66, 6, ar(f"التاريخ: {date_str}"), border=1, align="R", ln=True)
-    pdf.cell(132, 6, ar(f"استلمت من السيد / {agent_name}"), border=1, align="R", ln=True)
-
+    
+    pdf.cell(93, 7, ar(f"رقم المستند: {receipt_no}"), border=1, align="R")
+    pdf.cell(93, 7, ar(f"التاريخ: {date_str}"), border=1, align="R", ln=True)
+    pdf.cell(186, 7, ar(f"استلمت من السيد / {agent_name}"), border=1, align="R", ln=True)
+    
     amount_iqd = int(round(amount_usd * exchange_rate))
     amount_in_words = f"مبلغ وقدره: {number_to_arabic_words(amount_iqd)} دينار عراقي فقط لا غير"
     
-    pdf.set_fill_color(235, 240, 245)
-    start_x = pdf.get_x()
-    start_y = pdf.get_y()
-    pdf.cell(132, 6, "", border=1, fill=True, ln=True)
-
-    pdf.set_line_width(0.1)
-    pdf.set_draw_color(180, 190, 200)
-    for i in range(8, 132, 6):
-        pdf.line(start_x + i, start_y, start_x + i - 4, start_y + 6)
+    y_start_box = pdf.get_y()
+    pdf.set_fill_color(240, 243, 246)
+    pdf.cell(186, 7, ar(amount_in_words), border=1, align="R", fill=True, ln=True)
     
-    pdf.set_draw_color(0, 0, 0)
-    pdf.set_line_width(0.3)
-    pdf.set_xy(start_x, start_y)
-    pdf.cell(132, 6, ar(amount_in_words), border=0, align="R", ln=True)
-
-    paid_iqd_val = int(round(amount_usd * exchange_rate))
-    pdf.cell(66, 6, ar(f"سعر الصرف: {exchange_rate:,.0f} د.ع"), border=1, align="R")
-    
-    sx2, sy2 = pdf.get_x(), pdf.get_y()
-    pdf.cell(66, 6, "", border=1, fill=True, ln=True)
-    
-    pdf.set_line_width(0.1)
-    pdf.set_draw_color(180, 190, 200)
-    for i in range(8, 66, 6):
-        pdf.line(sx2 + i, sy2, sx2 + i - 4, sy2 + 6)
+    # خطوط الشطب الأمني فوق خانة التفقيط
+    pdf.set_line_width(0.2)
+    pdf.set_draw_color(150, 150, 150)
+    box_x = 12.5
+    box_y = y_start_box
+    box_w = 185
+    box_h = 7
+    step = 5
+    current_x = box_x + 4
+    while current_x < box_x + box_w:
+        pdf.line(current_x, box_y + box_h, current_x + 3, box_y)
+        current_x += step
         
     pdf.set_draw_color(0, 0, 0)
     pdf.set_line_width(0.3)
-    pdf.set_xy(sx2, sy2)
-    pdf.cell(66, 6, ar(f"المبلغ المدفوع: ${amount_usd:,.2f} / {paid_iqd_val:,} د.ع"), border=0, align="R")
-
+    
+    paid_iqd_val = int(round(amount_usd * exchange_rate))
+    pdf.cell(93, 7, ar(f"سعر الصرف: {exchange_rate:,.0f} د.ع"), border=1, align="R")
+    pdf.cell(93, 7, ar(f"المبلغ المدفوع: ${amount_usd:,.2f}  /  {paid_iqd_val:,} د.ع"), border=1, align="R", fill=True, ln=True)
+    
     note_text = f"الملاحظات: {note}" if note else "الملاحظات: -"
-    pdf.cell(132, 6, ar(note_text), border=1, align="R", ln=True)
-
+    pdf.cell(186, 7, ar(note_text), border=1, align="R", ln=True)
+    
     rem_iqd = int(round(remaining_debt_usd * exchange_rate))
     old_iqd = int(round(old_debt_usd * exchange_rate))
+    pdf.cell(186, 7, ar(f"الرصيد السابق: ${old_debt_usd:,.2f}  /  {old_iqd:,} د.ع"), border=1, align="R", fill=True, ln=True)
+    pdf.cell(186, 7, ar(f"الرصيد بعد التسديد: ${remaining_debt_usd:,.2f}  /  {rem_iqd:,} د.ع"), border=1, align="R", fill=True, ln=True)
     
-    for label_text in [
-        f"الرصيد السابق: ${old_debt_usd:,.2f} / {old_iqd:,} د.ع",
-        f"الرصيد بعد التسديد: ${remaining_debt_usd:,.2f} / {rem_iqd:,} د.ع"
-    ]:
-        sx3, sy3 = pdf.get_x(), pdf.get_y()
-        pdf.cell(132, 6, "", border=1, fill=True, ln=True)
-        pdf.set_line_width(0.1)
-        pdf.set_draw_color(180, 190, 200)
-        for i in range(8, 132, 6):
-            pdf.line(sx3 + i, sy3, sx3 + i - 4, sy3 + 6)
-        pdf.set_draw_color(0, 0, 0)
-        pdf.set_line_width(0.3)
-        pdf.set_xy(sx3, sy3)
-        pdf.cell(132, 6, ar(label_text), border=0, align="R")
-
     pdf.ln(4)
-    pdf.cell(132, 6, ar("توقيع وختم القابض: .........................."), ln=True, align="L")
     
-    end_y = pdf.get_y() + 2
+    # --- خانة توقيع وختم القابض مكبرة وضخمة جداً لتلبي طلبك بالكامل ---
+    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
+    pdf.cell(186, 7, ar("توقيع وختم القابض:"), ln=True, align="R")
+    
+    sign_box_y = pdf.get_y()
+    pdf.rect(12, sign_box_y, 186, 110) # مساحة ضخمة جداً ومريحة للختم والتوقيع
+    
+    pdf.set_y(sign_box_y + 112)
+    
+    end_y = pdf.get_y()
     pdf.set_line_width(0.5)
-    pdf.rect(8, 8, 132, end_y - 8)
+    pdf.rect(12, 12, 186, end_y - 12)
+    
     return bytes(pdf.output())
 
 
+# --- 3. إعداد الصفحة والجلسة ---
 st.set_page_config(
     page_title="نظام إدارة المخزون والمعامل والوكلاء",
     page_icon="❄️",
@@ -428,6 +401,7 @@ st.set_page_config(
 )
 
 all_factories = load_all_factories()
+
 query_params = st.query_params
 saved_factory = query_params.get("factory", None)
 saved_user = query_params.get("user", None)
@@ -449,9 +423,10 @@ if not st.session_state.authenticated and saved_factory and saved_user:
             st.session_state.role = factory_users[saved_user]["role"]
             st.session_state.user_fullname = factory_users[saved_user]["name"]
 
-
+# --- 4. شاشة تسجيل الدخول أو إنشاء حساب جديد ---
 if not st.session_state.authenticated:
     st.title("❄️ نظام إدارة وتتبع المعامل والمخزون")
+
     login_tab, register_tab = st.tabs(
         ["🔑 تسجيل الدخول لمعمل", "🏭 إنشاء حساب معمل جديد"]
     )
@@ -477,8 +452,10 @@ if not st.session_state.authenticated:
                     st.session_state.username = username_input
                     st.session_state.role = factory_users[username_input]["role"]
                     st.session_state.user_fullname = factory_users[username_input]["name"]
+
                     st.query_params["factory"] = selected_factory
                     st.query_params["user"] = username_input
+
                     st.success("تم تسجيل الدخول بنجاح!")
                     st.rerun()
                 else:
@@ -501,8 +478,10 @@ if not st.session_state.authenticated:
                 )
                 save_all_factories(all_factories)
                 st.success(f"✅ تم إنشاء [{new_factory_name}] بنجاح!")
-                st.stop()
 
+    st.stop()
+
+# --- 5. تحميل بيانات المعمل الحالي ---
 current_factory_name = st.session_state.factory_key
 if current_factory_name not in all_factories:
     st.error("حدث خطأ في تحميل بيانات المعمل.")
@@ -511,13 +490,14 @@ if current_factory_name not in all_factories:
     st.rerun()
 
 factory_data = all_factories[current_factory_name]
-
 if "finished_goods" not in factory_data:
     factory_data["finished_goods"] = {model: 0 for model in factory_data.get("bom", {}).keys()}
 if "agents" not in factory_data:
     factory_data["agents"] = {}
 
+# --- 6. الواجهة الرئيسية وشريط المستخدم ---
 st.title(f"❄️ {current_factory_name}")
+
 col_u1, col_u2 = st.columns([3, 1])
 with col_u1:
     role_badge = "👑 مدير المعمل" if st.session_state.role == "admin" else "👷 موظف"
@@ -531,6 +511,7 @@ with col_u2:
 
 st.write("---")
 
+# --- 7. التبويبات بحسب الصلاحيات ---
 if st.session_state.role == "admin":
     tabs = st.tabs([
         "📊 التقارير الشاملة",
@@ -552,13 +533,16 @@ else:
         "📦 المخزون الحالي",
     ])
 
+# --- تبويب التقارير (للمدير فقط) ---
 if st.session_state.role == "admin":
     with tabs[0]:
         st.header("📊 التقارير الشاملة والإحصائيات (بالدولار)")
+
         today_str = datetime.now().strftime("%Y-%m-%d")
         current_month_str = datetime.now().strftime("%Y-%m")
 
         sales_df = pd.DataFrame(factory_data.get("sales_history", []))
+
         today_sales_count, today_revenue_usd = 0, 0
         month_sales_count, month_revenue_usd = 0, 0
 
@@ -572,7 +556,7 @@ if st.session_state.role == "admin":
                     today_sales_count = today_sales["items_count"].sum()
                 if "total_usd" in today_sales.columns:
                     today_revenue_usd = today_sales["total_usd"].sum()
-
+            
             if not month_sales.empty:
                 if "items_count" in month_sales.columns:
                     month_sales_count = month_sales["items_count"].sum()
@@ -601,9 +585,11 @@ if st.session_state.role == "admin":
         )
         st.dataframe(fg_df, use_container_width=True)
 
+# --- تبويب إدارة الوكلاء والديون ---
 tab_agents = tabs[1] if st.session_state.role == "admin" else tabs[1]
 with tab_agents:
     st.header("🤝 إدارة الوكلاء وتسديد الديون (بالدولار)")
+
     sub_ag1, sub_ag2, sub_ag3 = st.tabs([
         "➕ إضافة وكيل جديد",
         "💵 تسديد دين / استلام دفعة",
@@ -614,7 +600,12 @@ with tab_agents:
         st.subheader("إضافة وكيل جديد")
         ag_name = st.text_input("اسم الوكيل / المحل:")
         ag_phone = st.text_input("رقم الهاتف:")
-        ag_initial_debt = st.number_input("الدين السابق ($):", min_value=0.0, value=0.0, step=100.0)
+        ag_initial_debt = st.number_input(
+            "الدين السابق ($):",
+            min_value=0.0,
+            value=0.0,
+            step=100.0,
+        )
 
         if st.button("➕ تسجيل الوكيل", type="primary", use_container_width=True):
             if not ag_name.strip():
@@ -646,9 +637,7 @@ with tab_agents:
             st.info("لا يوجد وكلاء مسجلون حالياً.")
         else:
             selected_ag = st.selectbox("اختر الوكيل:", agents_list, key="pay_agent_select")
-            current_debt = factory_data["agents"][selected_ag].get(
-                "debt_usd", factory_data["agents"][selected_ag].get("debt", 0.0)
-            )
+            current_debt = factory_data["agents"][selected_ag].get("debt_usd", factory_data["agents"][selected_ag].get("debt", 0.0))
             st.warning(f"💰 الدين الحالي على الوكيل [{selected_ag}]: **${current_debt:,.2f}**")
 
             pay_amount = st.number_input("المبلغ المدفوع ($):", min_value=0.01, value=100.0, step=50.0)
@@ -658,6 +647,7 @@ with tab_agents:
             if st.button("💵 تأكيد القبض وطبع السند", type="primary", use_container_width=True):
                 new_debt = current_debt - pay_amount
                 factory_data["agents"][selected_ag]["debt_usd"] = new_debt
+
                 receipt_no = factory_data.get("receipt_counter", 1001)
                 factory_data["receipt_counter"] = receipt_no + 1
 
@@ -668,6 +658,7 @@ with tab_agents:
                     "balance_usd": new_debt,
                     "note": f"وصل قبض #{receipt_no} - {pay_note}",
                 })
+
                 save_all_factories(all_factories)
 
                 pdf_bytes = generate_payment_pdf(
@@ -681,6 +672,7 @@ with tab_agents:
                     receipt_no=receipt_no,
                     note=pay_note
                 )
+
                 st.success(f"✅ تم الخصم. الدين المتبقي: ${new_debt:,.2f}")
                 st.download_button(
                     label="📥 تنزيل سند القبض (PDF)",
@@ -698,6 +690,7 @@ with tab_agents:
         else:
             sel_ag_view = st.selectbox("عرض حساب الوكيل:", agents_list, key="view_agent_select")
             ag_info = factory_data["agents"][sel_ag_view]
+
             col_a1, col_a2 = st.columns(2)
             col_a1.metric("رقم الهاتف", ag_info.get("phone", "غير محدد"))
             col_a2.metric("صافي الدين الحالي", f"${ag_info.get('debt_usd', ag_info.get('debt', 0)):,.2f}")
@@ -719,9 +712,11 @@ with tab_agents:
             else:
                 st.write("لا توجد معاملات مسجلة.")
 
+# --- تبويب بيع البرادات وإصدار قائمة حساب ---
 tab_receipt = tabs[2] if st.session_state.role == "admin" else tabs[0]
 with tab_receipt:
     st.header("🛒 بيع البرادات وإصدار قائمة حساب (بالدولار)")
+
     customer_type = st.radio(
         "نوع المشتري:",
         ["مشتري مباشر (نقداً)", "وكيل مسجل (بالأجل / نقد جزئي)"],
@@ -742,10 +737,10 @@ with tab_receipt:
             else:
                 selected_agent_name = st.selectbox("اختر الوكيل:", agents_list)
                 customer_name = selected_agent_name
-
     with col_rec2:
         purchase_date = st.date_input("تاريخ الشراء:", value=datetime.now())
-        exchange_rate = st.number_input("سعر صرف الدولار المعتمد في الفاتورة (د.ع مقابل $1):", min_value=1.0, value=1500.0, step=25.0)
+
+    exchange_rate = st.number_input("سعر صرف الدولار المعتمد في الفاتورة (د.ع مقابل $1):", min_value=1.0, value=1500.0, step=25.0)
 
     model_list = list(factory_data["bom"].keys())
     if not model_list:
@@ -781,7 +776,7 @@ with tab_receipt:
                 })
 
         grand_total_iqd = grand_total_usd * exchange_rate
-        st.markdown(f"### 💰 الإجمالي الكلي: `${grand_total_usd:,.2f}` / `{grand_total_iqd:,.0f}` د.ع")
+        st.markdown(f"### 💰 الإجمالي الكلي: `${grand_total_usd:,.2f}`  /  `{grand_total_iqd:,.0f}` د.ع")
 
         if customer_type == "وكيل مسجل (بالأجل / نقد جزئي)":
             paid_amount_usd = st.number_input(
@@ -812,9 +807,7 @@ with tab_receipt:
 
                 if selected_agent_name and selected_agent_name in factory_data["agents"]:
                     if remaining_amount_usd > 0:
-                        old_debt = factory_data["agents"][selected_agent_name].get(
-                            "debt_usd", factory_data["agents"][selected_agent_name].get("debt", 0.0)
-                        )
+                        old_debt = factory_data["agents"][selected_agent_name].get("debt_usd", factory_data["agents"][selected_agent_name].get("debt", 0.0))
                         new_debt = old_debt + remaining_amount_usd
                         factory_data["agents"][selected_agent_name]["debt_usd"] = new_debt
                         factory_data["agents"][selected_agent_name].setdefault("transactions", []).append({
@@ -846,6 +839,7 @@ with tab_receipt:
                     "paid_usd": paid_amount_usd,
                     "remaining_usd": remaining_amount_usd,
                 })
+
                 factory_data["receipt_counter"] = receipt_no + 1
                 save_all_factories(all_factories)
 
@@ -858,6 +852,7 @@ with tab_receipt:
                     use_container_width=True,
                 )
 
+# --- تبويب تسجيل الإنتاج ---
 tab_prod = tabs[3] if st.session_state.role == "admin" else tabs[2]
 with tab_prod:
     st.header("🏭 تسجيل عملية إنتاج براد جديد")
@@ -871,6 +866,7 @@ with tab_prod:
         if st.button("🚀 خصم المواد الأولية وزيادة البرادات", type="primary", use_container_width=True):
             required_bom = factory_data["bom"][model]
             missing_items = []
+
             for item, qty in required_bom.items():
                 needed = qty * count
                 available = factory_data["inventory"].get(item, 0)
@@ -894,14 +890,17 @@ with tab_prod:
                     "model": model,
                     "count": count,
                 })
+
                 save_all_factories(all_factories)
                 st.success(f"✅ تم إنتاج ({count}) من [{model}] بنجاح!")
                 st.rerun()
 
+# --- تبويب المخزون ---
 tab_inv = tabs[4] if st.session_state.role == "admin" else tabs[3]
 with tab_inv:
     if st.session_state.role == "admin":
         st.header("📦 إدارة المخزون")
+
         st.subheader("🧊 البرادات الجاهزة بالمخزن")
         fg_df = pd.DataFrame(
             list(factory_data["finished_goods"].items()),
@@ -927,6 +926,7 @@ with tab_inv:
                 save_all_factories(all_factories)
                 st.success("✅ تم تحديث المخزون بنجاح!")
                 st.rerun()
+
         with col_btn2:
             with st.popover("⚠️ تصفير جميع المواد"):
                 st.warning("هل أنت متأكد؟ سيتم جعل جميع المواد الأولية (0)!")
@@ -944,6 +944,7 @@ with tab_inv:
             columns=["نوع البراد", "العدد المتوفر للبيع"],
         )
         st.dataframe(fg_df, use_container_width=True)
+
         st.subheader("🧱 المواد الخام")
         df = pd.DataFrame(
             list(factory_data["inventory"].items()),
@@ -951,9 +952,11 @@ with tab_inv:
         )
         st.dataframe(df, use_container_width=True)
 
+# --- تبويبات الإدارة المتقدمة (للمدير فقط) ---
 if st.session_state.role == "admin":
     with tabs[5]:
         st.header("👥 إدارة الحسابات والموظفين")
+
         st.subheader("➕ إضافة حساب موظف/مدير جديد")
         col_u_a1, col_u_a2 = st.columns(2)
         with col_u_a1:
@@ -982,7 +985,7 @@ if st.session_state.role == "admin":
         st.header("تصدير التقارير إلى Excel")
         df_export = pd.DataFrame(list(factory_data["inventory"].items()), columns=["المادة الخام", "الكمية"])
         df_fg_export = pd.DataFrame(list(factory_data["finished_goods"].items()), columns=["البراد", "العدد"])
-        
+
         agents_export_data = [{
             "اسم الوكيل": k,
             "رقم الهاتف": v.get("phone", ""),
@@ -1023,7 +1026,7 @@ if st.session_state.role == "admin":
                     st.rerun()
 
     with tabs[8]:
-        st.header("🛠️ أنواع البرادات (BOM)")
+        st.header("🛠️ إدارة أنواع البرادات (BOM)")
         model_list = list(factory_data["bom"].keys())
         new_model_name = st.text_input("اسم نموذج البراد الجديد:")
         selected_ingredients = {}
@@ -1049,6 +1052,7 @@ if st.session_state.role == "admin":
         st.header("⚠️ فورمات كامل للنظام")
         st.error("تحذير: سيتم حذف جميع البيانات بشكل نهائي!")
         confirm_text = st.text_input("اكتب كلمة (DELETE) للتأكيد:")
+
         if st.button("🔥 تنفيذ الفورمات", type="primary", use_container_width=True):
             if confirm_text == "DELETE":
                 if os.path.exists(DATA_FILE):
