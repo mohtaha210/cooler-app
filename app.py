@@ -219,12 +219,13 @@ def ensure_arabic_font():
     if not os.path.exists(font_path):
         try:
             url = "https://github.com/google/fonts/raw/main/ofl/amiri/Amiri-Regular.ttf"
-            response = requests.get(url, timeout=10)
-            with open(font_path, "wb") as f:
-                f.write(response.content)
-        except Exception as e:
-            st.error(f"خطأ في تحميل الخط العربي: {e}")
-    return font_path
+            response = requests.get(url, timeout=5)
+            if response.status_code == 200:
+                with open(font_path, "wb") as f:
+                    f.write(response.content)
+        except Exception:
+            pass
+    return font_path if os.path.exists(font_path) else None
 
 
 def generate_receipt_pdf(
@@ -241,7 +242,8 @@ def generate_receipt_pdf(
     font_path = ensure_arabic_font()
     pdf = FPDF()
     pdf.add_page()
-    if os.path.exists(font_path):
+    
+    if font_path:
         pdf.add_font("Amiri", "", font_path)
         pdf.set_font("Amiri", "", 20)
     else:
@@ -249,11 +251,20 @@ def generate_receipt_pdf(
 
     pdf.set_text_color(30, 41, 59)
     pdf.cell(0, 10, ar(factory_name), ln=True, align="C")
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 16)
+    
+    if font_path:
+        pdf.set_font("Amiri", "", 16)
+    else:
+        pdf.set_font("Arial", "", 14)
+        
     pdf.cell(0, 8, ar("قائمة حساب (بالدولار الأمريكي)"), ln=True, align="C")
     pdf.ln(4)
 
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 10)
+    if font_path:
+        pdf.set_font("Amiri", "", 10)
+    else:
+        pdf.set_font("Arial", "", 10)
+        
     pdf.set_text_color(51, 65, 85)
     pdf.cell(0, 6, ar(f"رقم القائمة: #{receipt_no}"), ln=True, align="R")
     pdf.cell(0, 6, ar(f"التاريخ: {date_str}"), ln=True, align="R")
@@ -321,7 +332,8 @@ def generate_payment_pdf(
     pdf = FPDF(orientation="P", unit="mm", format="A5")
     pdf.set_margins(8, 8, 8)
     pdf.add_page()
-    if os.path.exists(font_path):
+    
+    if font_path:
         pdf.add_font("Amiri", "", font_path)
         pdf.set_font("Amiri", "", 13)
     else:
@@ -329,24 +341,29 @@ def generate_payment_pdf(
 
     pdf.set_text_color(0, 0, 0)
 
-    # رأس السند
     pdf.set_y(8)
     pdf.cell(0, 6, ar(factory_name), ln=True, align="C")
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
+    
+    if font_path:
+        pdf.set_font("Amiri", "", 11)
+    else:
+        pdf.set_font("Arial", "", 10)
+        
     pdf.cell(0, 6, ar("سند قبض"), ln=True, align="C")
     pdf.ln(2)
 
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 9)
+    if font_path:
+        pdf.set_font("Amiri", "", 9)
+    else:
+        pdf.set_font("Arial", "", 9)
+        
     pdf.set_line_width(0.3)
 
-    # معلومات رقم المستند والتاريخ
     pdf.cell(66, 6, ar(f"رقم المستند: {receipt_no}"), border=1, align="R")
     pdf.cell(66, 6, ar(f"التاريخ: {date_str}"), border=1, align="R", ln=True)
 
-    # اسم الوكيل
     pdf.cell(132, 6, ar(f"استلمت من السيد / {agent_name}"), border=1, align="R", ln=True)
 
-    # --- مبلغ التفقيط مع خطوط مائلة أمنية لمنع التزوير ---
     amount_iqd = int(round(amount_usd * exchange_rate))
     amount_in_words = f"مبلغ وقدره: {number_to_arabic_words(amount_iqd)} دينار عراقي فقط لا غير"
     
@@ -355,7 +372,6 @@ def generate_payment_pdf(
     start_y = pdf.get_y()
     pdf.cell(132, 6, "", border=1, fill=True, ln=True)
 
-    # رسم خطوط مائلة للأمان داخل الخلية
     pdf.set_line_width(0.1)
     pdf.set_draw_color(180, 190, 200)
     for i in range(8, 132, 6):
@@ -366,14 +382,12 @@ def generate_payment_pdf(
     pdf.set_xy(start_x, start_y)
     pdf.cell(132, 6, ar(amount_in_words), border=0, align="R", ln=True)
 
-    # سعر الصرف والمبلغ المدفوع (مع تظليل للأرقام)
     paid_iqd_val = int(round(amount_usd * exchange_rate))
     pdf.cell(66, 6, ar(f"سعر الصرف: {exchange_rate:,.0f} د.ع"), border=1, align="R")
     
     sx2, sy2 = pdf.get_x(), pdf.get_y()
     pdf.cell(66, 6, "", border=1, fill=True, ln=True)
     
-    # خطوط مائلة لحقل المبلغ المدفوع
     pdf.set_line_width(0.1)
     pdf.set_draw_color(180, 190, 200)
     for i in range(8, 66, 6):
@@ -384,11 +398,9 @@ def generate_payment_pdf(
     pdf.set_xy(sx2, sy2)
     pdf.cell(66, 6, ar(f"المبلغ المدفوع: ${amount_usd:,.2f} / {paid_iqd_val:,} د.ع"), border=0, align="R")
 
-    # الملاحظات
     note_text = f"الملاحظات: {note}" if note else "الملاحظات: -"
     pdf.cell(132, 6, ar(note_text), border=1, align="R", ln=True)
 
-    # الأرصدة (تظليل أرقام الديون مع خطوط مائلة أمنية)
     rem_iqd = int(round(remaining_debt_usd * exchange_rate))
     old_iqd = int(round(old_debt_usd * exchange_rate))
     
