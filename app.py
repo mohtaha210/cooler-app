@@ -311,7 +311,7 @@ def generate_payment_pdf(
     amount_in_words = f"مبلغ وقدره: {number_to_arabic_words(amount_iqd)} دينار عراقي فقط لا غير"
     
     # --- تظليل النصوص والأرقام التي تخص المال في سند القبض ---
-    pdf.set_fill_color(210, 225, 245) # لون تظليل مميز للبيانات المالية
+    pdf.set_fill_color(210, 225, 245)
     pdf.cell(186, 7, ar(amount_in_words), border=1, align="R", fill=True, ln=True)
 
     paid_iqd_val = int(round(amount_usd * exchange_rate))
@@ -530,8 +530,8 @@ with tabs[tab_ag_idx]:
             else:
                 st.write("لا توجد حركات مسجلة لهذا الحساب.")
             
-            # --- ميزة تأكيد الحذف لمنع الحذف بالخطأ ---
-            with st.expards_if_needed := st.popover("⚠️ حذف هذا الوكيل نهائياً"):
+            # --- ميزة تأكيد الحذف لمنع الحذف بالخطأ (تم تصحيح استدعاء popover) ---
+            with st.popover("⚠️ حذف هذا الوكيل نهائياً"):
                 st.warning(f"هل أنت متأكد من حذف الوكيل [{v_ag}]؟ لا يمكن التراجع عن هذا الإجراء.")
                 confirm_del_ag = st.text_input("اكتب كلمة (حذف) للتأكيد:", key="confirm_del_ag_input")
                 if st.button("تأكيد الحذف النهائي", type="primary"):
@@ -549,7 +549,6 @@ with tabs[tab_sale_idx]:
     st.header("🛒 نافذة البيع المبسطة")
     st.write("قم بإتمام عمليات البيع بنظام (نقداً، بالأجل، أو بالأقساط) لكل من الوكلاء والزبائن المباشرين بكل سهولة.")
 
-    # اختيار نوع الزبون
     buyer_category = st.radio("تصنيف المشتري:", ["زبون مباشر", "وكيل مسجل"], horizontal=True)
     
     if buyer_category == "وكيل مسجل":
@@ -565,7 +564,6 @@ with tabs[tab_sale_idx]:
         customer_display_name = st.text_input("اسم الزبون المباشر:", value="زبون نقدي")
         selected_agent_key = None
 
-    # طريقة الدفع المحدثة
     payment_system = st.selectbox(
         "طريقة البيع وسداد المبلغ:",
         ["بيع نقدي بالكامل", "بيع بالأجل (على الذمة)", "بيع بالتقساط (دفعة مقدمة + أقساط متبقية)"]
@@ -611,7 +609,6 @@ with tabs[tab_sale_idx]:
 
     st.markdown(f"### 💰 إجمالي الفاتورة: `${total_invoice_usd:,.2f}` (`{total_invoice_usd * exchange_rate:,.0f}` د.ع)")
 
-    # حساب المبالغ بحسب طريقة الدفع المختارة
     paid_now_usd = 0.0
     remaining_debt_usd = 0.0
     installments_note = ""
@@ -624,7 +621,7 @@ with tabs[tab_sale_idx]:
         paid_now_usd = 0.0
         remaining_debt_usd = total_invoice_usd
         payment_desc_str = "بيع بالأجل"
-    else: # بيع بالتقساط
+    else:
         paid_now_usd = st.number_input("المقدمة المدفوعة الآن ($):", min_value=0.0, max_value=float(total_invoice_usd), value=0.0, step=25.0)
         remaining_debt_usd = total_invoice_usd - paid_now_usd
         installments_note = st.text_input("تفاصيل جدول الأقساط:", value="أقساط شهرية متفق عليها")
@@ -641,16 +638,13 @@ with tabs[tab_sale_idx]:
             invoice_seq = factory_data.get("receipt_counter", 1001)
             factory_data["receipt_counter"] = invoice_seq + 1
 
-            # خصم المخزون
             for item in selected_items_list:
                 factory_data["finished_goods"][item["model"]] -= item["count"]
 
-            # ترحيل الذمة المالية إذا وجد متبقي
             if remaining_debt_usd > 0:
                 if selected_agent_key and selected_agent_key in factory_data["agents"]:
                     target_ag = selected_agent_key
                 else:
-                    # إذا كان زبون مباشر وتم البيع بالأجل، نضيفه تلقائياً لقائمة الوكلاء والذمم
                     target_ag = customer_display_name
                     if target_ag not in factory_data["agents"]:
                         factory_data["agents"][target_ag] = {"phone": "مباشر", "debt_usd": 0.0, "transactions": []}
@@ -666,7 +660,6 @@ with tabs[tab_sale_idx]:
                     "note": f"قائمة حساب #{invoice_seq} - {installments_note}"
                 })
 
-            # حفظ السجل
             factory_data["sales_history"].append({
                 "invoice_no": invoice_seq,
                 "date": purchase_date.strftime("%Y-%m-%d"),
@@ -676,7 +669,6 @@ with tabs[tab_sale_idx]:
             })
             save_factory_data(factory_data)
 
-            # توليد ملف PDF الجديد بدون أي إشارة للمعمل
             pdf_bytes = generate_new_account_statement_pdf(
                 customer_name=customer_display_name,
                 customer_type=buyer_category,
@@ -793,7 +785,6 @@ with tabs[tab_set_idx]:
         elif new_password_input and new_password_input != confirm_password_input:
             st.error("كلمتا المرور غير متطابقتين!")
         else:
-            # تحديث بيانات المستخدم
             if new_username_input != current_username:
                 if new_username_input in factory_data["users"]:
                     st.error("اسم المستخدم هذا مستخدم بالفعل من قبل شخص آخر!")
