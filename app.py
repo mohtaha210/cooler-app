@@ -558,7 +558,7 @@ with tabs[tab_ag_idx]:
                     else:
                         st.error("يرجى كتابة كلمة (حذف) بشكل صحيح للتأكيد.")
 
-# --- 3. نافذة البيع المبسطة (وضع المواد الخام تحت زر توسيع/إخفاء منفصل) ---
+# --- 3. نافذة البيع المبسطة (مع تفريغ حقول الصيانة بعد الإتمام) ---
 tab_sale_idx = 2 if st.session_state.role == "admin" else 0
 with tabs[tab_sale_idx]:
     st.header("🛒 نافذة البيع المبسطة")
@@ -622,7 +622,7 @@ with tabs[tab_sale_idx]:
                 "total_usd": item_tot
             })
 
-    # 2. قسم المواد الخام (تحت زر توسيع/إخفاء بناءً على الطلب)
+    # 2. قسم المواد الخام (تحت زر توسيع/إخفاء)
     with st.expander("🧱 خيارات بيع المواد الخام (اضغط للعرض والإخفاء)"):
         raw_inventory = factory_data.get("inventory", {})
         for raw_name, raw_avail in raw_inventory.items():
@@ -648,17 +648,21 @@ with tabs[tab_sale_idx]:
                     "total_usd": raw_tot
                 })
 
-    # 3. قسم أجور الصيانة
+    # 3. قسم أجور الصيانة (مع استخدام مفاتيح فريدة تتحدث تلقائياً بعد البيع لتفريغ الحقول)
     st.subheader("🛠️ أجور الصيانة والخدمات")
+    if "maint_reset_counter" not in st.session_state:
+        st.session_state.maint_reset_counter = 0
+    m_idx = st.session_state.maint_reset_counter
+
     c_maint1, c_maint2, c_maint3 = st.columns([2, 1, 1])
     with c_maint1:
-        maint_desc = st.text_input("وصف خدمة الصيانة:", value="تصليح وصيانة براد", key="maintenance_desc_input")
+        maint_desc = st.text_input("وصف خدمة الصيانة:", value="", key=f"maintenance_desc_input_{m_idx}")
     with c_maint2:
-        maint_hours_or_count = st.number_input("العدد / الأجر:", min_value=0, value=0, step=1, key="maintenance_qty_input")
+        maint_hours_or_count = st.number_input("العدد / الأجر:", min_value=0, value=0, step=1, key=f"maintenance_qty_input_{m_idx}")
     with c_maint3:
-        maint_price_usd = st.number_input("التكلفة ($):", min_value=0.0, value=0.0, step=5.0, key="maintenance_price_input")
+        maint_price_usd = st.number_input("التكلفة ($):", min_value=0.0, value=0.0, step=5.0, key=f"maintenance_price_input_{m_idx}")
 
-    if maint_hours_or_count > 0 and maint_price_usd > 0:
+    if maint_hours_or_count > 0 and maint_price_usd > 0 and maint_desc.strip():
         maint_tot = maint_hours_or_count * maint_price_usd
         total_invoice_usd += maint_tot
         selected_items_list.append({
@@ -734,6 +738,9 @@ with tabs[tab_sale_idx]:
                 "payment_type": payment_desc_str
             })
             save_factory_data(factory_data)
+
+            # تصفير حقول الصيانة بتحديث العداد لتغيير مفاتيح المدخلات في الـ Session State
+            st.session_state.maint_reset_counter += 1
 
             pdf_bytes = generate_new_account_statement_pdf(
                 customer_name=customer_display_name,
@@ -901,7 +908,7 @@ if st.session_state.role == "admin":
         st.header("⚠️ فورمات كامل للنظام")
         st.error("تحذير صارم: سيؤدي هذا لتصفير وحذف جميع البيانات!")
         conf_word = st.text_input("اكتب كلمة (DELETE) للتأكيد:", key="format_del_word")
-        if st.button("🔥 تنفيذ الفورمات الكامل", type="primary", use_container_width=True, key="format_submit_btn"):
+        if st.button("🔥 تنفيذ الفورมات الكامل", type="primary", use_container_width=True, key="format_submit_btn"):
             if conf_word == "DELETE":
                 if os.path.exists(DATA_FILE):
                     os.remove(DATA_FILE)
