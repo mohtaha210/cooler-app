@@ -167,7 +167,7 @@ def save_factory_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# --- 2. دوال الطباعة والتصدير PDF (تصميم معدل حسب الطلب) ---
+# --- 2. دوال الطباعة والتصدير PDF (تصميم مصحح لتظليل الأسعار والمال فقط) ---
 def ar(text):
     if not text:
         return ""
@@ -220,7 +220,6 @@ def generate_new_account_statement_pdf(
         pdf.set_font("Arial", "B", 14)
 
     pdf.set_text_color(0, 0, 0)
-    # تم إزالة جملة اسم المعمل والبقي فقط عنوان "قائمة حساب" بالأعلى
     pdf.cell(0, 8, ar("قائمة حساب"), ln=True, align="C")
     pdf.ln(3)
 
@@ -234,29 +233,33 @@ def generate_new_account_statement_pdf(
     pdf.ln(3)
 
     if items_data:
-        # تضليل (ألوان خلفية) للأسعار والمبالغ
-        pdf.set_fill_color(210, 225, 245)
-        pdf.set_text_color(0, 0, 0)
         col_widths = [46, 40, 25, 45, 30]
         headers = [ar("الإجمالي ($)"), ar("السعر ($)"), ar("الكمية"), ar("الإجمالي (د.ع)"), ar("الصنف")]
         for i, h in enumerate(headers):
-            # الأعمدة المتعلقة بالأسعار والمبالغ (0, 1, 3) مضللة، والكمية والصنف بيضاء
+            # الأعمدة [0, 1, 3] هي المتعلقة بالأسعار والمبالغ يتم تضليلها، والباقي أبيض
             is_shaded = i in [0, 1, 3]
-            pdf.cell(col_widths[i], 8, h, border=1, align="C", fill=is_shaded)
+            if is_shaded:
+                pdf.set_fill_color(210, 225, 245)
+            else:
+                pdf.set_fill_color(255, 255, 255)
+            pdf.cell(col_widths[i], 8, h, border=1, align="C", fill=True)
         pdf.ln()
 
         for item in items_data:
             tot_iqd = item['total_usd'] * exchange_rate
-            # تضليل خانات الأسرار والمبالغ لكل صف
-            pdf.set_fill_color(210, 225, 245)
-            pdf.cell(col_widths[0], 7, f"${item['total_usd']:,.2f}", border=1, align="C", fill=True)
-            pdf.cell(col_widths[1], 7, f"${item['price_usd']:,.2f}", border=1, align="C", fill=True)
-            pdf.set_fill_color(255, 255, 255)
-            pdf.cell(col_widths[2], 7, str(item["count"]), border=1, align="C", fill=True)
-            pdf.set_fill_color(210, 225, 245)
-            pdf.cell(col_widths[3], 7, f"{tot_iqd:,.0f}", border=1, align="C", fill=True)
-            pdf.set_fill_color(255, 255, 255)
-            pdf.cell(col_widths[4], 7, ar(item["model"]), border=1, align="C", fill=True)
+            row_cells = [
+                (f"${item['total_usd']:,.2f}", True),     # الإجمالي $ (مضلل)
+                (f"${item['price_usd']:,.2f}", True),     # السعر $ (مضلل)
+                (str(item["count"]), False),              # الكمية (أبيض)
+                (f"{tot_iqd:,.0f}", True),                 # الإجمالي د.ع (مضلل)
+                (ar(item["model"]), False)                # الصنف (أبيض)
+            ]
+            for j, (val, shaded) in enumerate(row_cells):
+                if shaded:
+                    pdf.set_fill_color(210, 225, 245)
+                else:
+                    pdf.set_fill_color(255, 255, 255)
+                pdf.cell(col_widths[j], 7, val, border=1, align="C", fill=True)
             pdf.ln()
 
     gt_iqd = int(round(grand_total_usd * exchange_rate))
@@ -277,7 +280,6 @@ def generate_new_account_statement_pdf(
     pdf.set_fill_color(255, 255, 255)
     pdf.ln(4)
 
-    # إزالة توقيع وختم المعمل نهائياً بناءً على الطلب
     return bytes(pdf.output())
 
 def generate_payment_pdf(
@@ -833,6 +835,8 @@ if st.session_state.role == "admin":
         st.write("تعريف المواد الداخلة في تركيب كل نموذج براد.")
         mod_name = st.text_input("اسم النموذج الجديد:", key="bom_new_model_name_input")
         sel_ingredients = {}
+        for mat_k in factory_data["headers"] if "headers" in locals() else factory_data["inventory"].keys(): # fallback safe
+            pass
         for mat_k in factory_data["inventory"].keys():
             chk = st.checkbox(f"يدخل فيه: {mat_k}", key=f"bom_chk_{mat_k}")
             if chk:
@@ -855,6 +859,7 @@ if st.session_state.role == "admin":
             if conf_word == "DELETE":
                 if os.path.exists(DATA_FILE):
                     os.remove(DATA_FILE)
+                st.session_state.cell if "cell" in st.session_state else None
                 st.session_state.clear()
                 st.success("✅ تم فورمات النظام وإعادة تهيئته بنجاح.")
                 st.rerun()
