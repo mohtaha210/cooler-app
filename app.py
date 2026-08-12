@@ -9,7 +9,7 @@ import pandas as pd
 import requests
 import streamlit as st
 
-DATA_FILE = "factory_full_data.json"
+DATA_FILE = "factory_direct_data.json"
 
 # --- 0. دوال مساعدة وتحويل النصوص والأرقام إلى كلمات عربية ---
 def number_to_arabic_words(num):
@@ -88,7 +88,7 @@ def ensure_arabic_font():
             pass
     return font_path
 
-# --- 1. هيكل البيانات الأساسي والشامل ---
+# --- 1. هيكل البيانات الأساسي ---
 def get_default_factory_data():
     return {
         "info": {"factory_name": "مصنع البرادات", "admin_user": "admin", "admin_pass": "1234"},
@@ -209,7 +209,7 @@ def generate_receipt_pdf(
             pdf.set_font("Amiri", "", 10)
             
         col_widths = [35, 35, 20, 45, 55]
-        headers = [ar("الإجمالي ($)"), ar("السعر ($)"), ar("الكمية"), ar("الإجمالي (د.ع)"), ar("اسم Mادة / براد")]
+        headers = [ar("الإجمالي ($)"), ar("السعر ($)"), ar("الكمية"), ar("الإجمالي (د.ع)"), ar("اسم المادة / البراد")]
         for i, h in enumerate(headers):
             pdf.cell(col_widths[i], 8, h, border=1, align="C", fill=True)
         pdf.ln()
@@ -259,7 +259,7 @@ def generate_receipt_pdf(
 
 # --- 3. تهيئة واجهة التطبيق ---
 st.set_page_config(
-    page_title="نظام إدارة المعمل المبسط",
+    page_title="نظام إدارة المعمل",
     page_icon="❄️",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -296,7 +296,7 @@ if st.button("🚪 تسجيل الخروج"):
 
 st.write("---")
 
-# --- 4. التبويبات الشاملة ---
+# --- 4. التبويبات الشاملة (بدون أي وكلاء أو تعقيدات) ---
 tabs = st.tabs([
     "🛒 نقطة البيع",
     "🏭 تسجيل إنتاج",
@@ -307,9 +307,9 @@ tabs = st.tabs([
     "⚙️ الإعدادات"
 ])
 
-# تبويب نقطة البيع المبسطة والفعالة
+# تبويب نقطة البيع
 with tabs[0]:
-    st.header("🛒 نقطة البيع وإصدار القوائم")
+    st.header("🛒 نقطة البيع وإصدار القوائم المباشرة")
     
     customer_name = st.text_input("اسم الزبون (اختياري):", placeholder="اكتب اسم الزبون هنا...")
     exchange_rate = st.number_input("سعر صرف الدولار (د.ع مقابل $1):", min_value=1.0, value=1500.0, step=25.0)
