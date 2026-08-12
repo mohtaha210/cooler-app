@@ -167,7 +167,7 @@ def save_factory_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# --- 2. دوال الطباعة والتصدير PDF (تصميم مصحح لتظليل الأسعار والمال فقط) ---
+# --- 2. دوال الطباعة والتصدير PDF (مطابقة تماماً للصورة بتوزيع الأعمدة والعناوين والتوقيع السفلي) ---
 def ar(text):
     if not text:
         return ""
@@ -215,51 +215,52 @@ def generate_new_account_statement_pdf(
 
     if os.path.exists(font_path):
         pdf.add_font("Amiri", "", font_path)
-        pdf.set_font("Amiri", "", 15)
+        pdf.set_font("Amiri", "", 13)
     else:
-        pdf.set_font("Arial", "B", 14)
+        pdf.set_font("Arial", "B", 12)
 
     pdf.set_text_color(0, 0, 0)
-    pdf.cell(0, 8, ar("قائمة حساب"), ln=True, align="C")
-    pdf.ln(3)
+    pdf.cell(0, 6, ar("معمل الرافدين للبرادات"), ln=True, align="C")
+    pdf.cell(0, 6, ar("قائمة حساب مبيعات (فاتورة)"), ln=True, align="C")
+    pdf.ln(2)
 
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
+    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 10)
     pdf.set_line_width(0.3)
-    pdf.cell(93, 7, ar(f"رقم القائمة: {invoice_no}"), border=1, align="R")
-    pdf.cell(93, 7, ar(f"التاريخ: {date_str}"), border=1, align="R", ln=True)
-    pdf.cell(93, 7, ar(f"اسم العميل / الزبون: {customer_name}"), border=1, align="R")
-    pdf.cell(93, 7, ar(f"طريقة الدفع: {payment_method_str}"), border=1, align="R", ln=True)
-    pdf.cell(186, 7, ar(f"سعر الصرف المعتمد: {exchange_rate:,.0f} د.ع"), border=1, align="R", ln=True)
-    pdf.ln(3)
+    pdf.cell(93, 6, ar(f"رقم القائمة: {invoice_no}"), border=1, align="R")
+    pdf.cell(93, 6, ar(f"التاريخ: {date_str}"), border=1, align="R", ln=True)
+    pdf.cell(93, 6, ar(f"اسم العميل / الزبون: {customer_name}"), border=1, align="R")
+    pdf.cell(93, 6, ar(f"طريقة الدفع: {payment_method_str}"), border=1, align="R", ln=True)
+    pdf.cell(186, 6, ar(f"سعر الصرف المعتمد: {exchange_rate:,.0f} د.ع"), border=1, align="R", ln=True)
+    pdf.ln(2)
 
     if items_data:
-        col_widths = [46, 40, 25, 45, 30]
-        headers = [ar("الإجمالي ($)"), ar("السعر ($)"), ar("الكمية"), ar("الإجمالي (د.ع)"), ar("الصنف")]
+        # ترتيب الأعمدة تماماً مثل الصورة: [الصنف، الإجمالي د.ع، الكمية، السعر ($)، الإجمالي ($)] بمعكوس اليمين لليسار أو الترتيب المظبوط
+        col_widths = [46, 45, 25, 40, 30]
+        headers = [ar("الصنف"), ar("الإجمالي (د.ع)"), ar("الكمية"), ar("السعر ($)"), ar("الإجمالي ($)")]
         for i, h in enumerate(headers):
-            # الأعمدة [0, 1, 3] هي المتعلقة بالأسعار والمبالغ يتم تضليلها، والباقي أبيض
-            is_shaded = i in [0, 1, 3]
+            is_shaded = i in [0, 2, 4] # الأعمدة المظللة مطابقة للصورة
             if is_shaded:
                 pdf.set_fill_color(210, 225, 245)
             else:
                 pdf.set_fill_color(255, 255, 255)
-            pdf.cell(col_widths[i], 8, h, border=1, align="C", fill=True)
+            pdf.cell(col_widths[i], 7, h, border=1, align="C", fill=True)
         pdf.ln()
 
         for item in items_data:
             tot_iqd = item['total_usd'] * exchange_rate
             row_cells = [
-                (f"${item['total_usd']:,.2f}", True),     # الإجمالي $ (مضلل)
-                (f"${item['price_usd']:,.2f}", True),     # السعر $ (مضلل)
+                (ar(item["model"]), True),                 # الصنف (مظلل)
+                (f"{tot_iqd:,.0f}", False),                # الإجمالي د.ع (أبيض)
                 (str(item["count"]), False),              # الكمية (أبيض)
-                (f"{tot_iqd:,.0f}", True),                 # الإجمالي د.ع (مضلل)
-                (ar(item["model"]), False)                # الصنف (أبيض)
+                (f"${item['price_usd']:,.2f}", False),     # السعر $ (أبيض)
+                (f"${item['total_usd']:,.2f}", True)       # الإجمالي $ (مظلل)
             ]
             for j, (val, shaded) in enumerate(row_cells):
                 if shaded:
                     pdf.set_fill_color(210, 225, 245)
                 else:
                     pdf.set_fill_color(255, 255, 255)
-                pdf.cell(col_widths[j], 7, val, border=1, align="C", fill=True)
+                pdf.cell(col_widths[j], 6, val, border=1, align="C", fill=True)
             pdf.ln()
 
     gt_iqd = int(round(grand_total_usd * exchange_rate))
@@ -268,17 +269,20 @@ def generate_new_account_statement_pdf(
 
     total_in_words = f"المبلغ الإجمالي وقدره: {number_to_arabic_words(gt_iqd)} دينار عراقي فقط لا غير"
     pdf.set_fill_color(210, 225, 245)
-    pdf.cell(186, 7, ar(total_in_words), border=1, align="R", fill=True, ln=True)
+    pdf.cell(186, 6, ar(total_in_words), border=1, align="R", fill=True, ln=True)
 
     pdf.set_fill_color(255, 255, 255)
-    pdf.cell(93, 7, ar(f"المبلغ المدفوع: ${paid_amount_usd:,.2f}  /  {pd_iqd:,} د.ع"), border=1, align="R", fill=True)
-    pdf.cell(93, 7, ar(f"المبلغ الإجمالي: ${grand_total_usd:,.2f}  /  {gt_iqd:,} د.ع"), border=1, align="R", fill=True, ln=True)
+    pdf.cell(93, 6, ar(f"المبلغ المدفوع: ${paid_amount_usd:,.2f} / {pd_iqd:,} د.ع"), border=1, align="R", fill=True)
+    pdf.cell(93, 6, ar(f"المبلغ الإجمالي: ${grand_total_usd:,.2f} / {gt_iqd:,} د.ع"), border=1, align="R", fill=True, ln=True)
 
     pdf.set_fill_color(210, 225, 245)
-    pdf.cell(186, 7, ar(f"المبلغ المتبقي (الذمة المالية): ${remaining_amount_usd:,.2f}  /  {rm_iqd:,} د.ع"), border=1, align="R", fill=True, ln=True)
+    pdf.cell(186, 6, ar(f"المبلغ المتبقي (الذمة المالية): ${remaining_amount_usd:,.2f} / {rm_iqd:,} د.ع"), border=1, align="R", fill=True, ln=True)
     
-    pdf.set_fill_color(255, 255, 255)
     pdf.ln(4)
+    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 10)
+    pdf.cell(186, 6, ar("توقيع وختم البائع / المستلم:"), ln=True, align="R")
+    sign_box_y = pdf.get_y()
+    pdf.rect(12, sign_box_y, 186, 25)  
 
     return bytes(pdf.output())
 
@@ -309,50 +313,47 @@ def generate_payment_pdf(
 
     if os.path.exists(font_path):
         pdf.add_font("Amiri", "", font_path)
-        pdf.set_font("Amiri", "", 15)
+        pdf.set_font("Amiri", "", 13)
     else:
-        pdf.set_font("Arial", "B", 14)
+        pdf.set_font("Arial", "B", 12)
 
     pdf.set_text_color(0, 0, 0)
-    pdf.cell(0, 8, ar("معمل الرافدين للبرادات"), ln=True, align="C")
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 13)
-    pdf.cell(0, 7, ar("سند قبض"), ln=True, align="C")
-    pdf.ln(3)
+    pdf.cell(0, 6, ar("معمل الرافدين للبرادات"), ln=True, align="C")
+    pdf.cell(0, 6, ar("سند قبض"), ln=True, align="C")
+    pdf.ln(2)
 
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
+    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 10)
     pdf.set_line_width(0.3)
-    pdf.cell(93, 7, ar(f"رقم المستند: {receipt_no}"), border=1, align="R")
-    pdf.cell(93, 7, ar(f"التاريخ: {date_str}"), border=1, align="R", ln=True)
-    pdf.cell(186, 7, ar(f"استلمت من السيد / {agent_name}"), border=1, align="R", ln=True)
+    pdf.cell(93, 6, ar(f"رقم المستند: {receipt_no}"), border=1, align="R")
+    pdf.cell(93, 6, ar(f"التاريخ: {date_str}"), border=1, align="R", ln=True)
+    pdf.cell(186, 6, ar(f"استلمت من السيد / {agent_name}"), border=1, align="R", ln=True)
 
     amount_iqd = int(round(amount_usd * exchange_rate))
     amount_in_words = f"مبلغ وقدره: {number_to_arabic_words(amount_iqd)} دينار عراقي فقط لا غير"
     
     pdf.set_fill_color(210, 225, 245)
-    pdf.cell(186, 7, ar(amount_in_words), border=1, align="R", fill=True, ln=True)
+    pdf.cell(186, 6, ar(amount_in_words), border=1, align="R", fill=True, ln=True)
 
     paid_iqd_val = int(round(amount_usd * exchange_rate))
-    pdf.cell(93, 7, ar(f"سعر الصرف: {exchange_rate:,.0f} د.ع"), border=1, align="R", fill=True)
-    pdf.cell(93, 7, ar(f"المبلغ المدفوع: ${amount_usd:,.2f}  /  {paid_iqd_val:,} د.ع"), border=1, align="R", fill=True, ln=True)
+    pdf.cell(93, 6, ar(f"سعر الصرف: {exchange_rate:,.0f} د.ع"), border=1, align="R", fill=True)
+    pdf.cell(93, 6, ar(f"المبلغ المدفوع: ${amount_usd:,.2f} / {paid_iqd_val:,} د.ع"), border=1, align="R", fill=True, ln=True)
 
     note_text = f"الملاحظات: {note}" if note else "الملاحظات: -"
     pdf.set_fill_color(255, 255, 255)
-    pdf.cell(186, 7, ar(note_text), border=1, align="R", ln=True)
+    pdf.cell(186, 6, ar(note_text), border=1, align="R", ln=True)
 
     rem_iqd = int(round(remaining_debt_usd * exchange_rate))
     old_iqd = int(round(old_debt_usd * exchange_rate))
     
     pdf.set_fill_color(210, 225, 245)
-    pdf.cell(186, 7, ar(f"الرصيد السابق: ${old_debt_usd:,.2f}  /  {old_iqd:,} د.ع"), border=1, align="R", fill=True, ln=True)
-    pdf.cell(186, 7, ar(f"الرصيد بعد التسديد: ${remaining_debt_usd:,.2f}  /  {rem_iqd:,} د.ع"), border=1, align="R", fill=True, ln=True)
+    pdf.cell(186, 6, ar(f"الرصيد السابق: ${old_debt_usd:,.2f} / {old_iqd:,} د.ع"), border=1, align="R", fill=True, ln=True)
+    pdf.cell(186, 6, ar(f"الرصيد بعد التسديد: ${remaining_debt_usd:,.2f} / {rem_iqd:,} د.ع"), border=1, align="R", fill=True, ln=True)
     
-    pdf.set_fill_color(255, 255, 255)
     pdf.ln(4)
-
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
-    pdf.cell(186, 7, ar("توقيع وختم القابض:"), ln=True, align="R")
+    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 10)
+    pdf.cell(186, 6, ar("توقيع وختم القابض:"), ln=True, align="R")
     sign_box_y = pdf.get_y()
-    pdf.rect(12, sign_box_y, 186, 30)  
+    pdf.rect(12, sign_box_y, 186, 25)  
     
     return bytes(pdf.output())
 
@@ -835,8 +836,6 @@ if st.session_state.role == "admin":
         st.write("تعريف المواد الداخلة في تركيب كل نموذج براد.")
         mod_name = st.text_input("اسم النموذج الجديد:", key="bom_new_model_name_input")
         sel_ingredients = {}
-        for mat_k in factory_data["headers"] if "headers" in locals() else factory_data["inventory"].keys(): # fallback safe
-            pass
         for mat_k in factory_data["inventory"].keys():
             chk = st.checkbox(f"يدخل فيه: {mat_k}", key=f"bom_chk_{mat_k}")
             if chk:
@@ -859,7 +858,6 @@ if st.session_state.role == "admin":
             if conf_word == "DELETE":
                 if os.path.exists(DATA_FILE):
                     os.remove(DATA_FILE)
-                st.session_state.cell if "cell" in st.session_state else None
                 st.session_state.clear()
                 st.success("✅ تم فورمات النظام وإعادة تهيئته بنجاح.")
                 st.rerun()
