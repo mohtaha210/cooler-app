@@ -1,4 +1,3 @@
-Here is the fully refactored and updated code for your Streamlit application, incorporating all 10 of your requested modifications (advanced payment types for direct customers and agents, actual logo placement on payment receipts, a complete UI redesign for sales/account receipts, robust data safety protocols, background/amount shading on receipts, single-factory lock-in with credential management, visual feedback/toast alerts for actions, reorganized inventory management with tabs for raw materials and adjustments, dynamic BOM/model editor, and a dedicated pricing tab for fixed selling prices with support for selling raw materials and applying discounts).
 from datetime import datetime
 import io
 import json
@@ -12,7 +11,7 @@ import streamlit as st
 
 DATA_FILE = "factory_data.json"
 
-# --- 0. دالة تحويل الأرقام إلى نصوص عربية (تفقيط لسند القبض) ---
+# --- 0. دوال مساعدة وتحويل النصوص والأرقام ---
 def number_to_arabic_words(num):
     if num == 0:
         return "صفر"
@@ -70,26 +69,54 @@ def number_to_arabic_words(num):
         parts.append(convert_group(num))
     return " و ".join(parts).strip()
 
-# --- 1. إدارة ملف البيانات والتخزين الدائم (نسخ احتياطي أوتوماتيكي للأمان) ---
+def ar(text):
+    if not text:
+        return ""
+    reshaped_text = arabic_reshaper.reshape(str(text))
+    return get_display(reshaped_text)
+
+@st.cache_resource
+def ensure_arabic_font():
+    font_path = "Amiri-Regular.ttf"
+    if not os.path.exists(font_path):
+        try:
+            url = "https://github.com/google/fonts/raw/main/ofl/amiri/Amiri-Regular.ttf"
+            response = requests.get(url, timeout=10)
+            with open(font_path, "wb") as f:
+                f.write(response.content)
+        except Exception:
+            pass
+    return font_path
+
+# --- 1. هيكل البيانات الأساسي ---
 def get_default_factory_data():
     return {
         "info": {"factory_name": "مصنع البرادات", "admin_user": "admin", "admin_pass": "1234"},
         "inventory": {
-            "الحنفية": 0.0, "البانكة": 0.0, "الماطور": 0.0, "التوماتيك": 0.0,
-            "الطواف": 0.0, "الراديتر": 0.0, "زواية القاعدة": 0.0, "المنيوم القاعدة 1.35m": 0.0,
-            "الجكنة": 0.0, "واشر حديد": 0.0, "واشر بلاستك": 0.0, "زبانة": 0.0,
-            "كبلري 1.7m": 0.0, "كويل": 0.0, "بوري ربع 1.5m": 0.0, "طبقة وربع بليت": 0.0,
+            "الحنفية": 50.0, "البانكة": 20.0, "الماطور": 15.0, "التوماتيك": 20.0,
+            "الطواف": 20.0, "الراديتر": 20.0, "زواية القاعدة": 100.0, "المنيوم القاعدة 1.35m": 30.0,
+            "الجكنة": 25.0, "واشر حديد": 100.0, "واشر بلاستك": 100.0, "زبانة": 50.0,
+            "كبلري 1.7m": 30.0, "كويل": 20.0, "بوري ربع 1.5m": 30.0, "طبقة وربع بليت": 40.0,
+            "بوري نص": 30.0, "فلاتر": 30.0, "قاعدة بلاستيك": 20.0, "غطاء علوي": 20.0,
+            "صامولة": 100.0, "براغي متنوعة": 500.0, "لحام فضة": 10.0, "غاز رديتر": 15.0,
+            "عازل حراري": 25.0, "سلك كهرباء": 50.0, "فيشة كهرباء": 30.0, "لصق وجه": 40.0
         },
         "finished_goods": {
-            "براد حنفية واحدة": 0,
-            "براد حنفيتين": 0,
+            "براد حنفية واحدة": 5,
+            "براد حنفيتين": 3,
         },
         "prices": {
             "براد حنفية واحدة": 150.0,
             "براد حنفيتين": 180.0,
+            "الحنفية": 5.0,
+            "الماطور": 45.0,
         },
-        "agents": {},
-        "direct_customers": {},
+        "agents": {
+            "وكيل بغداد المركز": {"phone": "07700000000", "debt_usd": 0.0, "transactions": []}
+        },
+        "direct_customers": {
+            "زبون عام": {"phone": "07800000000", "debt_usd": 0.0, "transactions": []}
+        },
         "bom": {
             "براد حنفية واحدة": {
                 "الحنفية": 1, "البانكة": 1, "الماطور": 1, "التوماتيك": 1,
@@ -114,7 +141,6 @@ def load_factory_data():
         try:
             with open(DATA_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            # ضمان وجود كافة المفاتيح الأساسية لتفادي أخطاء التحديثات القديمة
             default_structure = get_default_factory_data()
             for key in default_structure:
                 if key not in data:
@@ -128,49 +154,19 @@ def load_factory_data():
         return initial_data
 
 def save_factory_data(data):
-    # حفظ الملف الرئيسي
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
-    # عمل نسخة احتياطية تلقائية لضمان عدم ضياع البيانات
     try:
         with open("backup_" + DATA_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
     except Exception:
-            pass
+        pass
 
-# --- 2. دوال الطباعة وتوليد الـ PDF ---
-def ar(text):
-    if not text:
-        return ""
-    reshaped_text = arabic_reshaper.reshape(str(text))
-    return get_display(reshaped_text)
-
-@st.cache_resource
-def ensure_arabic_font():
-    font_path = "Amiri-Regular.ttf"
-    if not os.path.exists(font_path):
-        try:
-            url = "https://github.com/google/fonts/raw/main/ofl/amiri/Amiri-Regular.ttf"
-            response = requests.get(url, timeout=10)
-            with open(font_path, "wb") as f:
-                f.write(response.content)
-        except Exception as e:
-            pass
-    return font_path
-
+# --- 2. توليد مستندات الـ PDF ---
 def generate_receipt_pdf(
-    factory_name,
-    customer_name,
-    customer_type,
-    date_str,
-    items_data,
-    grand_total_usd,
-    discount_usd,
-    net_total_usd,
-    paid_amount_usd,
-    remaining_amount_usd,
-    exchange_rate,
-    receipt_no,
+    factory_name, customer_name, customer_type, date_str, items_data,
+    grand_total_usd, discount_usd, net_total_usd, paid_amount_usd,
+    remaining_amount_usd, exchange_rate, receipt_no
 ):
     font_path = ensure_arabic_font()
     pdf = FPDF(orientation="P", unit="mm", format="A4")
@@ -180,7 +176,6 @@ def generate_receipt_pdf(
     if os.path.exists(font_path):
         pdf.add_font("Amiri", "", font_path)
 
-    # --- شعار المعمل في أعلى اليمين ---
     logo_path = "logo.png"
     if os.path.exists(logo_path):
         try:
@@ -188,7 +183,6 @@ def generate_receipt_pdf(
         except Exception:
             pass
 
-    # --- ترويسة قائمة الحساب الحديثة ---
     pdf.set_y(12)
     if os.path.exists(font_path):
         pdf.set_font("Amiri", "", 18)
@@ -203,7 +197,6 @@ def generate_receipt_pdf(
     pdf.cell(0, 6, ar("قائمة حساب مبيعات رسمية"), ln=True, align="C")
     pdf.ln(5)
 
-    # معلومات العميل والفاتورة
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 10)
     pdf.set_fill_color(248, 250, 252)
     pdf.rect(10, pdf.get_y(), 190, 20, style="DF")
@@ -222,7 +215,6 @@ def generate_receipt_pdf(
     pdf.set_y(y_start + 22)
     pdf.ln(4)
 
-    # جدول المنتجات
     if items_data:
         pdf.set_fill_color(30, 41, 59)
         pdf.set_text_color(255, 255, 255)
@@ -246,13 +238,12 @@ def generate_receipt_pdf(
             pdf.cell(col_widths[4], 7, ar(item["model"]), border=1, align="C")
             pdf.ln()
 
-    # الحسابات الختامية مع التظليل المطلوب للأموال
     pdf.ln(3)
     net_iqd = net_total_usd * exchange_rate
     paid_iqd = paid_amount_usd * exchange_rate
     rem_iqd = remaining_amount_usd * exchange_rate
 
-    pdf.set_fill_color(226, 232, 240) # تظليل قيم المال
+    pdf.set_fill_color(226, 232, 240)
     pdf.cell(95, 7, f"${grand_total_usd:,.2f}", border=1, align="C", fill=True)
     pdf.cell(95, 7, ar("المجموع الكلي"), border=1, align="R")
     pdf.ln()
@@ -280,15 +271,8 @@ def generate_receipt_pdf(
     return bytes(pdf.output())
 
 def generate_payment_pdf(
-    factory_name,
-    customer_name,
-    date_str,
-    amount_usd,
-    remaining_debt_usd,
-    old_debt_usd,
-    exchange_rate,
-    receipt_no,
-    note=""
+    factory_name, customer_name, date_str, amount_usd, remaining_debt_usd,
+    old_debt_usd, exchange_rate, receipt_no, note=""
 ):
     font_path = ensure_arabic_font()
     pdf = FPDF(orientation="P", unit="mm", format="A4")
@@ -327,7 +311,7 @@ def generate_payment_pdf(
     amount_iqd = int(round(amount_usd * exchange_rate))
     amount_in_words = f"مبلغ وقدره: {number_to_arabic_words(amount_iqd)} دينار عراقي فقط لا غير"
     
-    pdf.set_fill_color(226, 232, 240) # تظليل إجباري لكافة المبالغ المالية
+    pdf.set_fill_color(226, 232, 240)
     pdf.cell(186, 7, ar(amount_in_words), border=1, align="R", fill=True, ln=True)
 
     paid_iqd_val = int(round(amount_usd * exchange_rate))
@@ -347,12 +331,11 @@ def generate_payment_pdf(
 
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
     pdf.cell(186, 7, ar("توقيع وختم القابض:"), ln=True, align="R")
-    sign_box_y = pdf.get_y()
-    pdf.rect(12, sign_box_y, 186, 30)  
+    pdf.rect(12, pdf.get_y(), 186, 30)  
     
     return bytes(pdf.output())
 
-# --- 3. إعداد صفحة الـ Streamlit والجلسة ---
+# --- 3. تهيئة واجهة التطبيق وحالة الجلسة ---
 st.set_page_config(
     page_title="نظام إدارة المخزون والمعامل والوكلاء",
     page_icon="❄️",
@@ -365,7 +348,6 @@ factory_data = load_factory_data()
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
-# --- 4. شاشة تسجيل الدخول الموحدة لمعمل واحد ---
 if not st.session_state.authenticated:
     st.title("❄️ نظام إدارة وتتبع المعمل والمخزون")
     st.subheader("تسجيل الدخول للنظام")
@@ -384,7 +366,6 @@ if not st.session_state.authenticated:
             st.error("اسم المستخدم أو كلمة المرور غير صحيحة!")
     st.stop()
 
-# --- 5. الواجهة الرئيسية والشريط العلوي ---
 current_factory_name = factory_data["info"].get("factory_name", "مصنع البرادات")
 st.title(f"❄️ {current_factory_name}")
 
@@ -398,7 +379,7 @@ with col_top2:
 
 st.write("---")
 
-# --- 6. التبويبات الرئيسية للنظام ---
+# --- 4. التبويبات الشاملة للنظام ---
 tabs = st.tabs([
     "📊 التقارير الشاملة",
     "🛒 بيع برادات أو مواد خام",
@@ -410,7 +391,7 @@ tabs = st.tabs([
     "⚙️ إعدادات النظام والأمان",
 ])
 
-# --- تبويب التقارير الشاملة ---
+# تبويب التقارير الشاملة
 with tabs[0]:
     st.header("📊 التقارير الشاملة والإحصائيات (بالدولار)")
     today_str = datetime.now().strftime("%Y-%m-%d")
@@ -453,7 +434,7 @@ with tabs[0]:
     )
     st.dataframe(fg_df, use_container_width=True)
 
-# --- تبويب بيع برادات أو مواد خام ---
+# تبويب بيع برادات أو مواد خام
 with tabs[1]:
     st.header("🛒 نقطة البيع وإصدار قوائم الحساب")
     
@@ -552,11 +533,10 @@ with tabs[1]:
         if stock_error:
             st.error("❌ الكمية المطلوبة تتجاوز المخزون المتوفر!")
         elif not selected_items:
-            st.error("⚠️ يجيب تحديد عنصر واحد على الأقل للبيع.")
+            st.error("⚠️ يجب تحديد عنصر واحد على الأقل للبيع.")
         else:
             receipt_no = factory_data.get("receipt_counter", 1001)
             
-            # خصم الكميات من المخزون
             if sale_category == "برادات جاهزة":
                 for item in selected_items:
                     factory_data["finished_goods"][item["model"]] -= int(item["count"])
@@ -564,7 +544,6 @@ with tabs[1]:
                 for item in selected_items:
                     factory_data["inventory"][item["model"]] -= item["count"]
 
-            # تحديث ديون الزبون أو الوكيل إذا وجد متبقي
             if remaining_amount_usd > 0:
                 target_dict = factory_data["agents"] if customer_type_choice == "وكيل معتمد" else factory_data["direct_customers"]
                 if customer_name in target_dict:
@@ -617,7 +596,7 @@ with tabs[1]:
                 use_container_width=True,
             )
 
-# --- تبويب إدارة الوكلاء والزبائن ---
+# تبويب إدارة الوكلاء والزبائن
 with tabs[2]:
     st.header("🤝 إدارة الوكلاء والزبائن المباشرين وديونهم")
     sub_ag1, sub_ag2 = st.tabs(["➕ إضافة جهة جديدة", "💵 قبض دفعة مالية وإصدار سند"])
@@ -709,7 +688,7 @@ with tabs[2]:
                     use_container_width=True,
                 )
 
-# --- تبويب تسجيل إنتاج براد ---
+# تبويب تسجيل إنتاج براد
 with tabs[3]:
     st.header("🏭 تسجيل عملية إنتاج براد جديد")
     model_list = list(factory_data["bom"].keys())
@@ -747,7 +726,7 @@ with tabs[3]:
                 st.success(f"✅ تم إنتاج ({prod_count}) من [{prod_model}] بنجاح وتحديث المواد الخام!")
                 st.toast("تم تسجيل عملية الإنتاج بنجاح!", icon="❄️")
 
-# --- تبويب الأسعار الرسمية ---
+# تبويب الأسعار الرسمية
 with tabs[4]:
     st.header("💲 إدارة الأسعار الثابتة للمنتجات والمواد الخام")
     st.write("حدد هنا سعر البيع الثابت لكل براد أو مادة خام لتظهر مباشرة في نقطة البيع:")
@@ -768,7 +747,7 @@ with tabs[4]:
         st.success("✅ تم تحديث الأسعار بنجاح!")
         st.toast("تم حفظ الأسعار الرسمية!", icon="💲")
 
-# --- تبويب إدارة المخزون ---
+# تبويب إدارة المخزون
 with tabs[5]:
     st.header("📦 إدارة المخزون والمواد الخام")
     
@@ -816,7 +795,7 @@ with tabs[5]:
             st.toast("تم حفظ تفاصيل المخزون بنجاح!", icon="📦")
             st.rerun()
 
-# --- تبويب أنواع البرادات (BOM) ---
+# تبويب أنواع البرادات (BOM)
 with tabs[6]:
     st.header("🛠️ إدارة نماذج البرادات وتعديل المواد الخام اللازمة لكل نموذج")
     
@@ -861,7 +840,7 @@ with tabs[6]:
                 st.success(f"✅ تمت إضافة النموذج [{new_model_name}] بنجاح!")
                 st.rerun()
 
-# --- تبويب إعدادات النظام والأمان ---
+# تبويب إعدادات النظام والأمان
 with tabs[7]:
     st.header("⚙️ إعدادات النظام، بيانات الدخول، والأمان والحماية")
     
@@ -894,4 +873,3 @@ with tabs[7]:
             mime="application/json",
             use_container_width=True,
         )
-
