@@ -207,7 +207,6 @@ def generate_new_account_statement_pdf(
     else:
         pdf.set_font("Arial", "B", 18)
 
-    # --- قائمة حسابات فقط بدون ذكر أي معلومات تخص المعمل بناءً على طلبك ---
     pdf.set_text_color(15, 23, 42)
     pdf.cell(0, 10, ar("قائمة حسابات"), ln=True, align="C")
     pdf.ln(4)
@@ -278,7 +277,6 @@ def generate_payment_pdf(
     pdf.set_margins(12, 12, 12)
     pdf.add_page()
 
-    # --- إضافة الشعار في أعلى اليمين ---
     logo_path = "rafidain_logo.jpg"
     try:
         if os.path.exists(logo_path):
@@ -310,7 +308,6 @@ def generate_payment_pdf(
     amount_iqd = int(round(amount_usd * exchange_rate))
     amount_in_words = f"مبلغ وقدره: {number_to_arabic_words(amount_iqd)} دينار عراقي فقط لا غير"
     
-    # --- تظليل النصوص والأرقام التي تخص المال في سند القبض ---
     pdf.set_fill_color(210, 225, 245)
     pdf.cell(186, 7, ar(amount_in_words), border=1, align="R", fill=True, ln=True)
 
@@ -440,11 +437,11 @@ with tabs[tab_ag_idx]:
 
     with sub_ag1:
         st.subheader("إضافة وكيل أو زبون ذمم جديد")
-        ag_name = st.text_input("اسم الوكيل / الزبون:")
-        ag_phone = st.text_input("رقم الهاتف:")
-        ag_init_debt = st.number_input("الرصيد / الدين السابق ($):", min_value=0.0, value=0.0, step=50.0)
+        ag_name = st.text_input("اسم الوكيل / الزبون:", key="new_agent_name_input")
+        ag_phone = st.text_input("رقم الهاتف:", key="new_agent_phone_input")
+        ag_init_debt = st.number_input("الرصيد / الدين السابق ($):", min_value=0.0, value=0.0, step=50.0, key="new_agent_debt_input")
         
-        if st.button("➕ تسجيل الوكيل", type="primary", use_container_width=True):
+        if st.button("➕ تسجيل الوكيل", type="primary", use_container_width=True, key="new_agent_submit_btn"):
             if not ag_name.strip():
                 st.error("يرجى إدخال اسم الوكيل.")
             elif ag_name in factory_data["agents"]:
@@ -473,15 +470,15 @@ with tabs[tab_ag_idx]:
         if not agents_list:
             st.info("لا توجد حسابات وكلاء مسجلة حالياً.")
         else:
-            sel_agent = st.selectbox("اختر الوكيل / الزبون:", agents_list)
+            sel_agent = st.selectbox("اختر الوكيل / الزبون:", agents_list, key="payment_agent_selectbox")
             cur_debt = factory_data["agents"][sel_agent].get("debt_usd", 0.0)
             st.warning(f"الذمة المالية الحالية على [{sel_agent}]: **${cur_debt:,.2f}**")
 
-            pay_amt = st.number_input("المبلغ المدفوع ($):", min_value=0.01, value=100.0, step=25.0)
-            ex_rate = st.number_input("سعر صرف الدولار (د.ع):", min_value=1.0, value=1500.0, step=25.0)
-            pay_note = st.text_input("ملاحظات السند:", value="تسديد نقدآ")
+            pay_amt = st.number_input("المبلغ المدفوع ($):", min_value=0.01, value=100.0, step=25.0, key="payment_amount_input")
+            ex_rate = st.number_input("سعر صرف الدولار (د.ع):", min_value=1.0, value=1500.0, step=25.0, key="payment_exchange_rate_input")
+            pay_note = st.text_input("ملاحظات السند:", value="تسديد نقدآ", key="payment_note_input")
 
-            if st.button("💵 تأكيد القبض وطباعة السند", type="primary", use_container_width=True):
+            if st.button("💵 تأكيد القبض وطباعة السند", type="primary", use_container_width=True, key="payment_submit_btn"):
                 new_debt = cur_debt - pay_amt
                 factory_data["agents"][sel_agent]["debt_usd"] = new_debt
                 receipt_no = factory_data.get("receipt_counter", 1001)
@@ -513,6 +510,7 @@ with tabs[tab_ag_idx]:
                     file_name=f"سند_قبض_{receipt_no}_{sel_agent}.pdf",
                     mime="application/pdf",
                     use_container_width=True,
+                    key="download_payment_pdf_btn"
                 )
 
     with sub_ag3:
@@ -530,11 +528,10 @@ with tabs[tab_ag_idx]:
             else:
                 st.write("لا توجد حركات مسجلة لهذا الحساب.")
             
-            # --- ميزة تأكيد الحذف لمنع الحذف بالخطأ (تم تصحيح استدعاء popover) ---
             with st.popover("⚠️ حذف هذا الوكيل نهائياً"):
                 st.warning(f"هل أنت متأكد من حذف الوكيل [{v_ag}]؟ لا يمكن التراجع عن هذا الإجراء.")
                 confirm_del_ag = st.text_input("اكتب كلمة (حذف) للتأكيد:", key="confirm_del_ag_input")
-                if st.button("تأكيد الحذف النهائي", type="primary"):
+                if st.button("تأكيد الحذف النهائي", type="primary", key="confirm_del_ag_btn"):
                     if confirm_del_ag == "حذف":
                         del factory_data["agents"][v_ag]
                         save_factory_data(factory_data)
@@ -543,13 +540,13 @@ with tabs[tab_ag_idx]:
                     else:
                         st.error("يرجى كتابة كلمة (حذف) بشكل صحيح للتأكيد.")
 
-# --- 3. نافذة البيع المبسطة (تدعم النقد، الأجل، والأقساط لكافة العملاء) ---
+# --- 3. نافذة البيع المبسطة ---
 tab_sale_idx = 2 if st.session_state.role == "admin" else 0
 with tabs[tab_sale_idx]:
     st.header("🛒 نافذة البيع المبسطة")
     st.write("قم بإتمام عمليات البيع بنظام (نقداً، بالأجل، أو بالأقساط) لكل من الوكلاء والزبائن المباشرين بكل سهولة.")
 
-    buyer_category = st.radio("تصنيف المشتري:", ["زبون مباشر", "وكيل مسجل"], horizontal=True)
+    buyer_category = st.radio("تصنيف المشتري:", ["زبون مباشر", "وكيل مسجل"], horizontal=True, key="buyer_category_radio")
     
     if buyer_category == "وكيل مسجل":
         agents_list = list(factory_data["agents"].keys())
@@ -558,22 +555,23 @@ with tabs[tab_sale_idx]:
             customer_display_name = ""
             selected_agent_key = None
         else:
-            selected_agent_key = st.selectbox("اختر الوكيل:", agents_list)
+            selected_agent_key = st.selectbox("اختر الوكيل:", agents_list, key="sale_agent_selectbox")
             customer_display_name = selected_agent_key
     else:
-        customer_display_name = st.text_input("اسم الزبون المباشر:", value="زبون نقدي")
+        customer_display_name = st.text_input("اسم الزبون المباشر:", value="زبون نقدي", key="direct_customer_name_input")
         selected_agent_key = None
 
     payment_system = st.selectbox(
         "طريقة البيع وسداد المبلغ:",
-        ["بيع نقدي بالكامل", "بيع بالأجل (على الذمة)", "بيع بالتقساط (دفعة مقدمة + أقساط متبقية)"]
+        ["بيع نقدي بالكامل", "بيع بالأجل (على الذمة)", "بيع بالتقساط (دفعة مقدمة + أقساط متبقية)"],
+        key="payment_system_selectbox"
     )
 
     col_s1, col_s2 = st.columns(2)
     with col_s1:
-        purchase_date = st.date_input("تاريخ العملية:", value=datetime.now())
+        purchase_date = st.date_input("تاريخ العملية:", value=datetime.now(), key="sale_date_input")
     with col_s2:
-        exchange_rate = st.number_input("سعر صرف الدولار (د.ع):", min_value=1.0, value=1500.0, step=25.0)
+        exchange_rate = st.number_input("سعر صرف الدولار (د.ع):", min_value=1.0, value=1500.0, step=25.0, key="sale_exchange_rate_input")
 
     st.write("---")
     st.subheader("📦 اختيار المنتجات والكميات:")
@@ -622,12 +620,12 @@ with tabs[tab_sale_idx]:
         remaining_debt_usd = total_invoice_usd
         payment_desc_str = "بيع بالأجل"
     else:
-        paid_now_usd = st.number_input("المقدمة المدفوعة الآن ($):", min_value=0.0, max_value=float(total_invoice_usd), value=0.0, step=25.0)
+        paid_now_usd = st.number_input("المقدمة المدفوعة الآن ($):", min_value=0.0, max_value=float(total_invoice_usd), value=0.0, step=25.0, key="sale_paid_now_input")
         remaining_debt_usd = total_invoice_usd - paid_now_usd
-        installments_note = st.text_input("تفاصيل جدول الأقساط:", value="أقساط شهرية متفق عليها")
+        installments_note = st.text_input("تفاصيل جدول الأقساط:", value="أقساط شهرية متفق عليها", key="sale_installments_note_input")
         payment_desc_str = f"تقساط (مقدمة: ${paid_now_usd:,.2f})"
 
-    if st.button("🚀 إتمام عملية البيع وتوليد قائمة الحساب", type="primary", use_container_width=True):
+    if st.button("🚀 إتمام عملية البيع وتوليد قائمة الحساب", type="primary", use_container_width=True, key="complete_sale_btn"):
         if stock_shortage:
             st.error("❌ الكمية المطلوبة تتجاوز المخزون المتوفر!")
         elif not customer_display_name.strip():
@@ -689,6 +687,7 @@ with tabs[tab_sale_idx]:
                 file_name=f"قائمة_حساب_{invoice_seq}_{customer_display_name}.pdf",
                 mime="application/pdf",
                 use_container_width=True,
+                key="download_sale_pdf_btn"
             )
 
 # --- 4. تسجيل الإنتاج ---
@@ -700,7 +699,7 @@ with tabs[tab_prod_idx]:
         prod_model = st.selectbox("اختر البراد المراد إنتاجه:", models, key="prod_mod_box")
         prod_qty = st.number_input("العدد المصنوع:", min_value=1, value=1, step=1, key="prod_qty_box")
 
-        if st.button("🚀 خصم المواد الخام وإضافة البرادات", type="primary", use_container_width=True):
+        if st.button("🚀 خصم المواد الخام وإضافة البرادات", type="primary", use_container_width=True, key="prod_submit_btn"):
             bom_req = factory_data["bom"][prod_model]
             missing = []
             for mat, req_val in bom_req.items():
@@ -731,8 +730,8 @@ with tabs[tab_inv_idx]:
 
         st.subheader("🧱 المواد الأولية الخام")
         inv_df = pd.DataFrame(list(factory_data["inventory"].items()), columns=["المادة الخام", "الكمية"])
-        edited_inv = st.data_editor(inv_df, num_rows="dynamic", use_container_width=True)
-        if st.button("💾 حفظ تعديلات المخزون الخام", use_container_width=True):
+        edited_inv = st.data_editor(inv_df, num_rows="dynamic", use_container_width=True, key="inventory_data_editor")
+        if st.button("💾 حفظ تعديلات المخزون الخام", use_container_width=True, key="save_inventory_btn"):
             new_i = {}
             for _, r in edited_inv.iterrows():
                 if r["المادة الخام"]:
@@ -746,17 +745,17 @@ with tabs[tab_inv_idx]:
         st.dataframe(pd.DataFrame(list(factory_data["finished_goods"].items()), columns=["البراد", "الكمية"]), use_container_width=True)
         st.dataframe(pd.DataFrame(list(factory_data["inventory"].items()), columns=["المادة الخام", "الكمية"]), use_container_width=True)
 
-# --- حسابات والموظفين (مدير فقط) ---
+# --- الحسابات والموظفين (مدير فقط) ---
 if st.session_state.role == "admin":
     with tabs[5]:
         st.header("👥 إدارة الحسابات والموظفين")
         st.subheader("إضافة حساب موظف جديد")
-        u_name = st.text_input("اسم المستخدم:")
-        u_full = st.text_input("الاسم الكامل:")
-        u_pass = st.text_input("كلمة المرور:", type="password")
-        u_role = st.selectbox("الصلاحية:", ["staff", "admin"], format_func=lambda x: "مشرف / مدير" if x == "admin" else "موظف عادي")
+        u_name = st.text_input("اسم المستخدم:", key="new_user_name_input")
+        u_full = st.text_input("الاسم الكامل:", key="new_user_full_input")
+        u_pass = st.text_input("كلمة المرور:", type="password", key="new_user_pass_input")
+        u_role = st.selectbox("الصلاحية:", ["staff", "admin"], format_func=lambda x: "مشرف / مدير" if x == "admin" else "موظف عادي", key="new_user_role_selectbox")
 
-        if st.button("➕ إنشاء الحساب", type="primary", use_container_width=True):
+        if st.button("➕ إنشاء الحساب", type="primary", use_container_width=True, key="new_user_submit_btn"):
             if u_name and u_pass:
                 if u_name in factory_data["users"]:
                     st.error("اسم المستخدم موجود مسبقاً!")
@@ -766,7 +765,7 @@ if st.session_state.role == "admin":
                     st.success("✅ تم إضافة الحساب بنجاح!")
                     st.rerun()
 
-# --- تبويب جديد: تعديل كلمة السر أو اسم المستخدم للحساب الحالي ---
+# --- إعدادات الحساب الشخصي ---
 tab_set_idx = 6 if st.session_state.role == "admin" else 4
 with tabs[tab_set_idx]:
     st.header("⚙️ إعدادات الحساب الشخصي")
@@ -775,11 +774,11 @@ with tabs[tab_set_idx]:
     current_username = st.session_state.username
     curr_user_obj = factory_data["users"].get(current_username, {})
 
-    new_username_input = st.text_input("اسم المستخدم الجديد:", value=current_username)
-    new_password_input = st.text_input("كلمة المرور الجديدة:", type="password")
-    confirm_password_input = st.text_input("تأكيد كلمة المرور الجديدة:", type="password")
+    new_username_input = st.text_input("اسم المستخدم الجديد:", value=current_username, key="settings_new_username_input")
+    new_password_input = st.text_input("كلمة المرور الجديدة:", type="password", key="settings_new_password_input")
+    confirm_password_input = st.text_input("تأكيد كلمة المرور الجديدة:", type="password", key="settings_confirm_password_input")
 
-    if st.button("💾 حفظ التعديلات الشخصية", type="primary", use_container_width=True):
+    if st.button("💾 حفظ التعديلات الشخصية", type="primary", use_container_width=True, key="settings_save_btn"):
         if not new_username_input.strip():
             st.error("اسم المستخدم لا يمكن أن يكون فارغاً.")
         elif new_password_input and new_password_input != confirm_password_input:
@@ -802,9 +801,9 @@ with tabs[tab_set_idx]:
 if st.session_state.role == "admin":
     with tabs[7]:
         st.header("إضافة مادة خام جديدة")
-        nm = st.text_input("اسم المادة:")
-        nq = st.number_input("الكمية الأولية:", min_value=0.0, value=0.0)
-        if st.button("➕ إضافة المادة", type="primary", use_container_width=True):
+        nm = st.text_input("اسم المادة:", key="add_raw_name_input")
+        nq = st.number_input("الكمية الأولية:", min_value=0.0, value=0.0, key="add_raw_qty_input")
+        if st.button("➕ إضافة المادة", type="primary", use_container_width=True, key="add_raw_submit_btn"):
             if nm:
                 factory_data["inventory"][nm] = nq
                 save_factory_data(factory_data)
@@ -814,14 +813,14 @@ if st.session_state.role == "admin":
     with tabs[8]:
         st.header("🛠️ إدارة أنواع البرادات (BOM)")
         st.write("تعريف المواد الداخلة في تركيب كل نموذج براد.")
-        mod_name = st.text_input("اسم النموذج الجديد:")
+        mod_name = st.text_input("اسم النموذج الجديد:", key="bom_new_model_name_input")
         sel_ingredients = {}
         for mat_k in factory_data["inventory"].keys():
             chk = st.checkbox(f"يدخل فيه: {mat_k}", key=f"bom_chk_{mat_k}")
             if chk:
                 q_val = st.number_input(f"الكمية من [{mat_k}]:", min_value=0.1, value=1.0, key=f"bom_q_{mat_k}")
                 sel_ingredients[mat_k] = q_val
-        if st.button("🛠️ حفظ نموذج البراد", use_container_width=True):
+        if st.button("🛠️ حفظ نموذج البراد", use_container_width=True, key="bom_save_model_btn"):
             if mod_name and sel_ingredients:
                 factory_data["bom"][mod_name] = sel_ingredients
                 if mod_name not in factory_data["finished_goods"]:
@@ -834,7 +833,7 @@ if st.session_state.role == "admin":
         st.header("⚠️ فورمات كامل للنظام")
         st.error("تحذير صارم: سيؤدي هذا لتصفير وحذف جميع البيانات!")
         conf_word = st.text_input("اكتب كلمة (DELETE) للتأكيد:", key="format_del_word")
-        if st.button("🔥 تنفيذ الفورمات الكامل", type="primary", use_container_width=True):
+        if st.button("🔥 تنفيذ الفورمات الكامل", type="primary", use_container_width=True, key="format_submit_btn"):
             if conf_word == "DELETE":
                 if os.path.exists(DATA_FILE):
                     os.remove(DATA_FILE)
