@@ -9,15 +9,15 @@ import pandas as pd
 import requests
 import streamlit as st
 
-DATA_FILE = "factory_data.json"
+DATA_FILE = "factory_full_data.json"
 
-# --- 0. دوال مساعدة وتحويل النصوص والأرقام ---
+# --- 0. دوال مساعدة وتحويل النصوص والأرقام إلى كلمات عربية ---
 def number_to_arabic_words(num):
     if num == 0:
         return "صفر"
     ones = ["", "واحد", "اثنان", "ثلاثة", "أربعة", "خمسة", "ستة", "سبعة", "ثمانية", "تسعة"]
     teens = ["عشرة", "أحد عشر", "اثنا عشر", "ثلاثة عشر", "أربعة عشر", "خمسة عشر", "ستة عشر", "سبعة عشر", "ثمانية عشر", "تسعة عشر"]
-    tens = ["", "عشرة", "عشرون", "ثلاثون", "أربعون", "خمسون", "ستون", "سبعون", "ثمانون", "تسعون"]
+    tens_list = ["", "عشرة", "عشرون", "ثلاثون", "أربعون", "خمسون", "ستون", "سبعون", "ثمانون", "تسعون"]
     hundreds = ["", "مائة", "مائتان", "ثلاثمائة", "أربعمائة", "خمسمائة", "ستمائة", "سبعمائة", "ثمانمائة", "تسعمائة"]
     
     def convert_group(n):
@@ -35,9 +35,9 @@ def number_to_arabic_words(num):
                 t = rem // 10
                 u = rem % 10
                 if u > 0:
-                    res.append(ones[u] + " و " + tens[t])
+                    res.append(ones[u] + " و " + tens_list[t])
                 else:
-                    res.append(tens[t])
+                    res.append(tens_list[t])
         return " و ".join(res)
     
     parts = []
@@ -88,7 +88,7 @@ def ensure_arabic_font():
             pass
     return font_path
 
-# --- 1. هيكل البيانات الأساسي ---
+# --- 1. هيكل البيانات الأساسي والشامل ---
 def get_default_factory_data():
     return {
         "info": {"factory_name": "مصنع البرادات", "admin_user": "admin", "admin_pass": "1234"},
@@ -102,20 +102,14 @@ def get_default_factory_data():
             "عازل حراري": 25.0, "سلك كهرباء": 50.0, "فيشة كهرباء": 30.0, "لصق وجه": 40.0
         },
         "finished_goods": {
-            "براد حنفية واحدة": 5,
-            "براد حنفيتين": 3,
+            "براد حنفية واحدة": 10,
+            "براد حنفيتين": 10,
         },
         "prices": {
             "براد حنفية واحدة": 150.0,
             "براد حنفيتين": 180.0,
             "الحنفية": 5.0,
             "الماطور": 45.0,
-        },
-        "agents": {
-            "وكيل بغداد المركز": {"phone": "07700000000", "debt_usd": 0.0, "transactions": []}
-        },
-        "direct_customers": {
-            "زبون عام": {"phone": "07800000000", "debt_usd": 0.0, "transactions": []}
         },
         "bom": {
             "براد حنفية واحدة": {
@@ -162,9 +156,9 @@ def save_factory_data(data):
     except Exception:
         pass
 
-# --- 2. توليد مستندات الـ PDF ---
+# --- 2. توليد مستندات الـ PDF الرسمية ---
 def generate_receipt_pdf(
-    factory_name, customer_name, customer_type, date_str, items_data,
+    factory_name, customer_name, date_str, items_data,
     grand_total_usd, discount_usd, net_total_usd, paid_amount_usd,
     remaining_amount_usd, exchange_rate, receipt_no
 ):
@@ -175,13 +169,6 @@ def generate_receipt_pdf(
 
     if os.path.exists(font_path):
         pdf.add_font("Amiri", "", font_path)
-
-    logo_path = "logo.png"
-    if os.path.exists(logo_path):
-        try:
-            pdf.image(logo_path, x=155, y=10, w=45)
-        except Exception:
-            pass
 
     pdf.set_y(12)
     if os.path.exists(font_path):
@@ -199,7 +186,7 @@ def generate_receipt_pdf(
 
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 10)
     pdf.set_fill_color(248, 250, 252)
-    pdf.rect(10, pdf.get_y(), 190, 20, style="DF")
+    pdf.rect(10, pdf.get_y(), 190, 18, style="DF")
     
     y_start = pdf.get_y() + 2
     pdf.set_xy(12, y_start)
@@ -208,11 +195,11 @@ def generate_receipt_pdf(
     pdf.cell(88, 6, ar(f"التاريخ: {date_str}"), align="R")
     
     pdf.set_xy(12, y_start + 7)
-    pdf.cell(90, 6, ar(f"اسم العميل: {customer_name} ({customer_type})"), align="R")
+    pdf.cell(90, 6, ar(f"اسم الزبون: {customer_name if customer_name else 'زبون عام'}"), align="R")
     pdf.set_xy(110, y_start + 7)
     pdf.cell(88, 6, ar(f"سعر الصرف: {exchange_rate:,.0f} د.ع"), align="R")
     
-    pdf.set_y(y_start + 22)
+    pdf.set_y(y_start + 20)
     pdf.ln(4)
 
     if items_data:
@@ -222,7 +209,7 @@ def generate_receipt_pdf(
             pdf.set_font("Amiri", "", 10)
             
         col_widths = [35, 35, 20, 45, 55]
-        headers = [ar("الإجمالي ($)"), ar("السعر ($)"), ar("الكمية"), ar("الإجمالي (د.ع)"), ar("اسم المادة / البراد")]
+        headers = [ar("الإجمالي ($)"), ar("السعر ($)"), ar("الكمية"), ar("الإجمالي (د.ع)"), ar("اسم Mادة / براد")]
         for i, h in enumerate(headers):
             pdf.cell(col_widths[i], 8, h, border=1, align="C", fill=True)
         pdf.ln()
@@ -250,7 +237,7 @@ def generate_receipt_pdf(
 
     if discount_usd > 0:
         pdf.cell(95, 7, f"- ${discount_usd:,.2f}", border=1, align="C", fill=True)
-        pdf.cell(95, 7, ar("قيمة الخصم الممنوح"), border=1, align="R")
+        pdf.cell(95, 7, ar("قيمة الخصم"), border=1, align="R")
         pdf.ln()
 
     pdf.cell(95, 7, f"${net_total_usd:,.2f} / {net_iqd:,.0f} د.ع", border=1, align="C", fill=True)
@@ -258,86 +245,21 @@ def generate_receipt_pdf(
     pdf.ln()
 
     pdf.cell(95, 7, f"${paid_amount_usd:,.2f} / {paid_iqd:,.0f} د.ع", border=1, align="C", fill=True)
-    pdf.cell(95, 7, ar("المبلغ المدفوع نقدياً"), border=1, align="R")
+    pdf.cell(95, 7, ar("المبلغ المدفوع"), border=1, align="R")
     pdf.ln()
 
     pdf.cell(95, 7, f"${remaining_amount_usd:,.2f} / {rem_iqd:,.0f} د.ع", border=1, align="C", fill=True)
-    pdf.cell(95, 7, ar("المبلغ المتبقي (آجل / أقساط)"), border=1, align="R")
+    pdf.cell(95, 7, ar("المبلغ المتبقي"), border=1, align="R")
     pdf.ln(12)
 
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 10)
-    pdf.cell(0, 6, ar("توقيع المحاسب / الإدارة: ..........................                توقيع المستلم: .........................."), ln=True, align="C")
+    pdf.cell(0, 6, ar("توقيع المحاسب: ..........................                توقيع المستلم: .........................."), ln=True, align="C")
     
     return bytes(pdf.output())
 
-def generate_payment_pdf(
-    factory_name, customer_name, date_str, amount_usd, remaining_debt_usd,
-    old_debt_usd, exchange_rate, receipt_no, note=""
-):
-    font_path = ensure_arabic_font()
-    pdf = FPDF(orientation="P", unit="mm", format="A4")
-    pdf.set_margins(12, 12, 12)
-    pdf.add_page()
-
-    if os.path.exists(font_path):
-        pdf.add_font("Amiri", "", font_path)
-
-    logo_path = "logo.png"
-    if os.path.exists(logo_path):
-        try:
-            pdf.image(logo_path, x=140, y=10, w=55)
-        except Exception:
-            pass
-
-    pdf.set_y(34)
-    if os.path.exists(font_path):
-        pdf.set_font("Amiri", "", 15)
-    else:
-        pdf.set_font("Arial", "B", 14)
-
-    pdf.set_text_color(0, 0, 0)
-    pdf.cell(0, 8, ar(factory_name), ln=True, align="C")
-    
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 13)
-    pdf.cell(0, 7, ar("سند قبض رسمي"), ln=True, align="C")
-    pdf.ln(3)
-
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
-    pdf.set_line_width(0.3)
-    pdf.cell(93, 7, ar(f"رقم المستند: {receipt_no}"), border=1, align="R")
-    pdf.cell(93, 7, ar(f"التاريخ: {date_str}"), border=1, align="R", ln=True)
-    pdf.cell(186, 7, ar(f"استلمت من السيد / {customer_name}"), border=1, align="R", ln=True)
-
-    amount_iqd = int(round(amount_usd * exchange_rate))
-    amount_in_words = f"مبلغ وقدره: {number_to_arabic_words(amount_iqd)} دينار عراقي فقط لا غير"
-    
-    pdf.set_fill_color(226, 232, 240)
-    pdf.cell(186, 7, ar(amount_in_words), border=1, align="R", fill=True, ln=True)
-
-    paid_iqd_val = int(round(amount_usd * exchange_rate))
-    pdf.cell(93, 7, ar(f"سعر الصرف: {exchange_rate:,.0f} د.ع"), border=1, align="R")
-    pdf.cell(93, 7, ar(f"المبلغ المدفوع: ${amount_usd:,.2f}  /  {paid_iqd_val:,} د.ع"), border=1, align="R", fill=True, ln=True)
-
-    note_text = f"الملاحظات: {note}" if note else "الملاحظات: -"
-    pdf.cell(186, 7, ar(note_text), border=1, align="R", ln=True)
-
-    rem_iqd = int(round(remaining_debt_usd * exchange_rate))
-    old_iqd = int(round(old_debt_usd * exchange_rate))
-    pdf.cell(186, 7, ar(f"الرصيد السابق: ${old_debt_usd:,.2f}  /  {old_iqd:,} د.ع"), border=1, align="R", fill=True, ln=True)
-    pdf.cell(186, 7, ar(f"الرصيد بعد التسديد: ${remaining_debt_usd:,.2f}  /  {rem_iqd:,} د.ع"), border=1, align="R", fill=True, ln=True)
-    
-    pdf.set_fill_color(255, 255, 255)
-    pdf.ln(4)
-
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
-    pdf.cell(186, 7, ar("توقيع وختم القابض:"), ln=True, align="R")
-    pdf.rect(12, pdf.get_y(), 186, 30)  
-    
-    return bytes(pdf.output())
-
-# --- 3. تهيئة واجهة التطبيق وحالة الجلسة ---
+# --- 3. تهيئة واجهة التطبيق ---
 st.set_page_config(
-    page_title="نظام إدارة المخزون والمعامل والوكلاء",
+    page_title="نظام إدارة المعمل المبسط",
     page_icon="❄️",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -349,7 +271,7 @@ if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 if not st.session_state.authenticated:
-    st.title("❄️ نظام إدارة وتتبع المعمل والمخزون")
+    st.title("❄️ نظام إدارة المعمل والمخزون")
     st.subheader("تسجيل الدخول للنظام")
     
     username_input = st.text_input("اسم المستخدم:")
@@ -360,209 +282,114 @@ if not st.session_state.authenticated:
         saved_pass = factory_data["info"].get("admin_pass", "1234")
         if username_input == saved_user and password_input == saved_pass:
             st.session_state.authenticated = True
-            st.success("تم تسجيل الدخول بنجاح!")
             st.rerun()
         else:
-            st.error("اسم المستخدم أو كلمة المرور غير صحيحة!")
+            st.error("خطأ في اسم المستخدم أو كلمة المرور!")
     st.stop()
 
 current_factory_name = factory_data["info"].get("factory_name", "مصنع البرادات")
 st.title(f"❄️ {current_factory_name}")
 
-col_top1, col_top2 = st.columns([3, 1])
-with col_top1:
-    st.info("👤 الحساب النشط: **مدير النظام الرئيسي**")
-with col_top2:
-    if st.button("🚪 تسجيل الخروج", use_container_width=True):
-        st.session_state.authenticated = False
-        st.rerun()
+if st.button("🚪 تسجيل الخروج"):
+    st.session_state.authenticated = False
+    st.rerun()
 
 st.write("---")
 
-# --- 4. التبويبات الشاملة للنظام ---
+# --- 4. التبويبات الشاملة ---
 tabs = st.tabs([
-    "📊 التقارير الشاملة",
-    "🛒 بيع برادات أو مواد خام",
-    "🤝 إدارة الوكلاء والزبائن",
-    "🏭 تسجيل إنتاج براد",
-    "💲 الأسعار الرسمية",
-    "📦 إدارة المخزون",
-    "🛠️ أنواع البرادات (BOM)",
-    "⚙️ إعدادات النظام والأمان",
+    "🛒 نقطة البيع",
+    "🏭 تسجيل إنتاج",
+    "📦 المخزون",
+    "💲 الأسعار",
+    "🛠️ هيكل البرادات (BOM)",
+    "📊 التقارير",
+    "⚙️ الإعدادات"
 ])
 
-# تبويب التقارير الشاملة
+# تبويب نقطة البيع المبسطة والفعالة
 with tabs[0]:
-    st.header("📊 التقارير الشاملة والإحصائيات (بالدولار)")
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    current_month_str = datetime.now().strftime("%Y-%m")
-
-    sales_df = pd.DataFrame(factory_data.get("sales_history", []))
-    today_sales_count, today_revenue_usd = 0, 0
-    month_sales_count, month_revenue_usd = 0, 0
-
-    if not sales_df.empty and "date" in sales_df.columns:
-        sales_df["date"] = pd.to_datetime(sales_df["date"], errors="coerce")
-        today_sales = sales_df[sales_df["date"].dt.strftime("%Y-%m-%d") == today_str]
-        month_sales = sales_df[sales_df["date"].dt.strftime("%Y-%m") == current_month_str]
-
-        if not today_sales.empty:
-            today_sales_count = today_sales["items_count"].sum()
-            today_revenue_usd = today_sales["total_usd"].sum()
-
-        if not month_sales.empty:
-            month_sales_count = month_sales["items_count"].sum()
-            month_revenue_usd = month_sales["total_usd"].sum()
-
-    total_debts_usd = sum(
-        agent.get("debt_usd", 0.0) for agent in list(factory_data["agents"].values()) + list(factory_data["direct_customers"].values())
-        if isinstance(agent, dict)
-    )
-
-    c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("برادات اليوم", f"{today_sales_count} براد")
-    c2.metric("إيراد اليوم", f"${today_revenue_usd:,.2f}")
-    c3.metric("مبيعات الشهر", f"{month_sales_count} براد")
-    c4.metric("إيراد الشهر", f"${month_revenue_usd:,.2f}")
-    c5.metric("إجمالي الديون", f"${total_debts_usd:,.2f}")
-
-    st.write("---")
-    st.subheader("🧊 المخزون الجاهز من البرادات")
-    fg_df = pd.DataFrame(
-        list(factory_data.get("finished_goods", {}).items()),
-        columns=["نوع البراد", "الكمية المتاحة للبيع"],
-    )
-    st.dataframe(fg_df, use_container_width=True)
-
-# تبويب بيع برادات أو مواد خام
-with tabs[1]:
-    st.header("🛒 نقطة البيع وإصدار قوائم الحساب")
+    st.header("🛒 نقطة البيع وإصدار القوائم")
     
-    sale_category = st.radio("نوع المبيع:", ["برادات جاهزة", "مواد خام من المخزن"], horizontal=True)
-    customer_type_choice = st.radio("تصنيف المشتري:", ["مشتري مباشر", "وكيل معتمد"], horizontal=True)
-
-    col_c1, col_c2 = st.columns(2)
-    with col_c1:
-        if customer_type_choice == "مشتري مباشر":
-            direct_list = list(factory_data["direct_customers"].keys())
-            cust_name = st.selectbox("اختر الزبون المباشر:", direct_list if direct_list else ["لا يوجد زبائن"])
-            customer_name = cust_name
-        else:
-            agents_list = list(factory_data["agents"].keys())
-            cust_name = st.selectbox("اختر الوكيل:", agents_list if agents_list else ["لا يوجد وكلاء"])
-            customer_name = cust_name
-
-    with col_c2:
-        purchase_date = st.date_input("تاريخ عملية البيع:", value=datetime.now())
-        exchange_rate = st.number_input("سعر صرف الدولار (د.ع مقابل $1):", min_value=1.0, value=1500.0, step=25.0)
-
+    customer_name = st.text_input("اسم الزبون (اختياري):", placeholder="اكتب اسم الزبون هنا...")
+    exchange_rate = st.number_input("سعر صرف الدولار (د.ع مقابل $1):", min_value=1.0, value=1500.0, step=25.0)
+    
+    sale_type = st.radio("نوع المبيع:", ["برادات جاهزة", "مواد خام من المخزن"], horizontal=True)
     prices_dict = factory_data.get("prices", {})
     selected_items = []
     grand_total_usd = 0.0
     total_units = 0
     stock_error = False
 
-    if sale_category == "برادات جاهزة":
-        st.subheader("تحديد البرادات المراد بيعها والأسعار الثابتة:")
-        model_list = list(factory_data["bom"].keys())
-        for model in model_list:
-            stock_available = factory_data["finished_goods"].get(model, 0)
-            default_price = prices_dict.get(model, 0.0)
+    if sale_type == "برادات جاهزة":
+        st.subheader("اختر البرادات والكميات المطلوبة:")
+        for model in factory_data["bom"].keys():
+            stock = factory_data["finished_goods"].get(model, 0)
+            def_price = prices_dict.get(model, 0.0)
             
-            c_m1, c_m2, c_m3 = st.columns([2, 1, 1])
-            with c_m1:
-                st.write(f"**{model}** (المتوفر بالمخزن: `{stock_available}`)")
-            with c_m2:
-                qty = st.number_input(f"العدد ({model}):", min_value=0, max_value=max(0, stock_available), value=0, key=f"sell_qty_{model}")
-            with c_m3:
-                price_val = st.number_input(f"السعر الفردي ($):", min_value=0.0, value=float(default_price), step=10.0, key=f"sell_price_{model}")
+            c1, c2, c3 = st.columns([2, 1, 1])
+            with c1:
+                st.write(f"**{model}** (متوفر بالمخزن: `{stock}`)")
+            with c2:
+                qty = st.number_input(f"العدد ({model})", min_value=0, max_value=max(0, stock), value=0, key=f"p_{model}")
+            with c3:
+                price = st.number_input(f"السعر ($) ({model})", min_value=0.0, value=float(def_price), step=10.0, key=f"pr_{model}")
 
-            if qty > stock_available:
+            if qty > stock:
                 stock_error = True
             if qty > 0:
-                item_total = qty * price_val
-                grand_total_usd += item_total
+                item_tot = qty * price
+                grand_total_usd += item_tot
                 total_units += qty
-                selected_items.append({"model": model, "count": qty, "price_usd": price_val, "total_usd": item_total})
+                selected_items.append({"model": model, "count": qty, "price_usd": price, "total_usd": item_tot})
     else:
-        st.subheader("تحديد المواد الخام المراد بيعها:")
-        inv_list = list(factory_data["inventory"].keys())
-        for item_name in inv_list:
-            stock_available = factory_data["inventory"].get(item_name, 0.0)
-            default_price = prices_dict.get(item_name, 0.0)
+        st.subheader("اختر المواد الخام والكميات المطلوبة:")
+        for item_name, stock in factory_data["inventory"].items():
+            def_price = prices_dict.get(item_name, 0.0)
             
-            c_i1, c_i2, c_i3 = st.columns([2, 1, 1])
-            with c_i1:
-                st.write(f"**{item_name}** (المتوفر: `{stock_available:,.2f}`)")
-            with c_i2:
-                qty = st.number_input(f"الكمية ({item_name}):", min_value=0.0, max_value=float(stock_available) if stock_available > 0 else 0.0, value=0.0, step=1.0, key=f"sell_raw_qty_{item_name}")
-            with c_i3:
-                price_val = st.number_input(f"سعر الوحدة ($):", min_value=0.0, value=float(default_price), step=5.0, key=f"sell_raw_price_{item_name}")
+            c1, c2, c3 = st.columns([2, 1, 1])
+            with c1:
+                st.write(f"**{item_name}** (متوفر: `{stock:,.2f}`)")
+            with c2:
+                qty = st.number_input(f"الكمية ({item_name})", min_value=0.0, max_value=float(stock) if stock > 0 else 0.0, value=0.0, step=1.0, key=f"raw_{item_name}")
+            with c3:
+                price = st.number_input(f"سعر الوحدة ($) ({item_name})", min_value=0.0, value=float(def_price), step=5.0, key=f"rawpr_{item_name}")
 
-            if qty > stock_available:
+            if qty > stock:
                 stock_error = True
             if qty > 0:
-                item_total = qty * price_val
-                grand_total_usd += item_total
+                item_tot = qty * price
+                grand_total_usd += item_tot
                 total_units += int(qty)
-                selected_items.append({"model": item_name, "count": qty, "price_usd": price_val, "total_usd": item_total})
+                selected_items.append({"model": item_name, "count": qty, "price_usd": price, "total_usd": item_tot})
 
-    st.write("---")
-    col_d1, col_d2 = st.columns(2)
-    with col_d1:
-        discount_usd = st.number_input("قيمة الخصم الممنوح ($):", min_value=0.0, value=0.0, step=5.0)
-    
+    discount_usd = st.number_input("قيمة الخصم ($):", min_value=0.0, value=0.0, step=5.0)
     net_total_usd = max(0.0, grand_total_usd - discount_usd)
-    net_total_iqd = net_total_usd * exchange_rate
-
-    st.markdown(f"### 💰 الإجمالي الصافي: `${net_total_usd:,.2f}` / `{net_total_iqd:,.0f}` د.ع")
-
-    payment_method = st.radio("طريقة الدفع:", ["نقداً بالكامل", "بالآجل بالكامل", "دفع جزئي والباقي أقساط / آجل"], horizontal=True)
     
-    if payment_method == "نقداً بالكامل":
-        paid_amount_usd = net_total_usd
-        remaining_amount_usd = 0.0
-    elif payment_method == "بالآجل بالكامل":
-        paid_amount_usd = 0.0
-        remaining_amount_usd = net_total_usd
-    else:
-        paid_amount_usd = st.number_input("المبلغ المدفوع نقداً الآن ($):", min_value=0.0, max_value=float(net_total_usd), value=0.0, step=10.0)
-        remaining_amount_usd = net_total_usd - paid_amount_usd
+    st.markdown(f"### 💰 الإجمالي الصافي: `${net_total_usd:,.2f}` (`{net_total_usd * exchange_rate:,.0f}` د.ع)")
+
+    paid_amount_usd = st.number_input("المبلغ المدفوع ($):", min_value=0.0, value=float(net_total_usd), step=10.0)
+    remaining_amount_usd = max(0.0, net_total_usd - paid_amount_usd)
 
     if st.button("🛒 إتمام البيع وإصدار القائمة", type="primary", use_container_width=True):
         if stock_error:
-            st.error("❌ الكمية المطلوبة تتجاوز المخزون المتوفر!")
+            st.error("❌ الكمية المطلوبة تتجاوز المخزون المتاح!")
         elif not selected_items:
-            st.error("⚠️ يجب تحديد عنصر واحد على الأقل للبيع.")
+            st.error("⚠️ يرجى اختيار عنصر واحد على الأقل للبيع.")
         else:
             receipt_no = factory_data.get("receipt_counter", 1001)
             
-            if sale_category == "برادات جاهزة":
+            if sale_type == "برادات جاهزة":
                 for item in selected_items:
                     factory_data["finished_goods"][item["model"]] -= int(item["count"])
             else:
                 for item in selected_items:
                     factory_data["inventory"][item["model"]] -= item["count"]
 
-            if remaining_amount_usd > 0:
-                target_dict = factory_data["agents"] if customer_type_choice == "وكيل معتمد" else factory_data["direct_customers"]
-                if customer_name in target_dict:
-                    old_debt = target_dict[customer_name].get("debt_usd", 0.0)
-                    new_debt = old_debt + remaining_amount_usd
-                    target_dict[customer_name]["debt_usd"] = new_debt
-                    target_dict[customer_name].setdefault("transactions", []).append({
-                        "date": purchase_date.strftime("%Y-%m-%d"),
-                        "type": "شراء بقائمة (متبقي آجل/أقساط)",
-                        "amount_usd": remaining_amount_usd,
-                        "balance_usd": new_debt,
-                        "note": f"قائمة حساب #{receipt_no}"
-                    })
-
             pdf_bytes = generate_receipt_pdf(
                 factory_name=current_factory_name,
                 customer_name=customer_name,
-                customer_type=customer_type_choice,
-                date_str=purchase_date.strftime("%Y-%m-%d"),
+                date_str=datetime.now().strftime("%Y-%m-%d"),
                 items_data=selected_items,
                 grand_total_usd=grand_total_usd,
                 discount_usd=discount_usd,
@@ -575,301 +402,147 @@ with tabs[1]:
 
             factory_data["sales_history"].append({
                 "receipt_no": receipt_no,
-                "date": purchase_date.strftime("%Y-%m-%d"),
-                "customer": customer_name,
-                "items_count": total_units,
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "customer": customer_name if customer_name else "زبون عام",
                 "total_usd": net_total_usd,
-                "paid_usd": paid_amount_usd,
-                "remaining_usd": remaining_amount_usd,
             })
             factory_data["receipt_counter"] = receipt_no + 1
             save_factory_data(factory_data)
 
-            st.success("✅ تم إتمام عملية البيع وتحديث المخزون بنجاح!")
-            st.toast("تم حفظ العملية وتوليد القائمة بنجاح!", icon="🎉")
-            
+            st.success("✅ تمت عملية البيع وتحديث المخزون بنجاح!")
             st.download_button(
-                label="📥 تنزيل قائمة الحساب الرسمية (PDF)",
+                label="📥 تنزيل القائمة الرسمية (PDF)",
                 data=pdf_bytes,
-                file_name=f"قائمة_حساب_{receipt_no}_{customer_name}.pdf",
+                file_name=f"قائمة_حساب_{receipt_no}.pdf",
                 mime="application/pdf",
                 use_container_width=True,
             )
 
-# تبويب إدارة الوكلاء والزبائن
-with tabs[2]:
-    st.header("🤝 إدارة الوكلاء والزبائن المباشرين وديونهم")
-    sub_ag1, sub_ag2 = st.tabs(["➕ إضافة جهة جديدة", "💵 قبض دفعة مالية وإصدار سند"])
-
-    with sub_ag1:
-        st.subheader("إضافة وكيل أو زبون مباشر جديد")
-        new_type = st.radio("التصنيف:", ["وكيل معتمد", "زبون مباشر"], horizontal=True)
-        new_name = st.text_input("اسم الشخص أو المحل:")
-        new_phone = st.text_input("رقم الهاتف:")
-        init_debt = st.number_input("الدين الافتتاحي السابق ($):", min_value=0.0, value=0.0, step=50.0)
-
-        if st.button("➕ حفظ وتثبيت الجهة", type="primary", use_container_width=True):
-            if not new_name.strip():
-                st.error("يرجى إدخال الاسم.")
-            else:
-                target_dict = factory_data["agents"] if new_type == "وكيل معتمد" else factory_data["direct_customers"]
-                if new_name in target_dict:
-                    st.error("هذا الاسم موجود مسبقاً!")
-                else:
-                    target_dict[new_name] = {
-                        "phone": new_phone,
-                        "debt_usd": init_debt,
-                        "transactions": []
-                    }
-                    if init_debt > 0:
-                        target_dict[new_name]["transactions"].append({
-                            "date": datetime.now().strftime("%Y-%m-%d"),
-                            "type": "دين افتتاحي",
-                            "amount_usd": init_debt,
-                            "balance_usd": init_debt,
-                            "note": "رصيد دين سابق عند التسجيل"
-                        })
-                    save_factory_data(factory_data)
-                    st.success(f"✅ تمت إضافة [{new_name}] بنجاح!")
-                    st.toast("تمت إضافة الجهة بنجاح!", icon="✅")
-
-    with sub_ag2:
-        st.subheader("قبض مبلغ مالي من وكيل / زبون وإصدار سند قبض")
-        entity_cat = st.radio("البحث في:", ["وكيل معتمد", "زبون مباشر"], horizontal=True, key="pay_cat")
-        target_dict = factory_data["agents"] if entity_cat == "وكيل معتمد" else factory_data["direct_customers"]
-        entity_list = list(target_dict.keys())
-
-        if not entity_list:
-            st.info("لا توجد جهات مسجلة حالياً.")
-        else:
-            sel_entity = st.selectbox("اختر الجهة:", entity_list)
-            curr_debt = target_dict[sel_entity].get("debt_usd", 0.0)
-            st.warning(f"💰 الدين الحالي على [{sel_entity}]: **${curr_debt:,.2f}**")
-
-            pay_amt = st.number_input("المبلغ المدفوع ($):", min_value=0.01, value=50.0, step=25.0)
-            ex_rate = st.number_input("سعر صرف الدولار (د.ع):", min_value=1.0, value=1500.0, step=25.0, key="pay_ex")
-            note_text = st.text_input("ملاحظات السند:", value="تسديد دفعة نقدية")
-
-            if st.button("💵 تأكيد القبض وطبع السند الرسمي", type="primary", use_container_width=True):
-                new_debt = max(0.0, curr_debt - pay_amt)
-                target_dict[sel_entity]["debt_usd"] = new_debt
-                receipt_no = factory_data.get("receipt_counter", 1001)
-                factory_data["receipt_counter"] = receipt_no + 1
-
-                target_dict[sel_entity].setdefault("transactions", []).append({
-                    "date": datetime.now().strftime("%Y-%m-%d"),
-                    "type": "تسديد دفعة",
-                    "amount_usd": -pay_amt,
-                    "balance_usd": new_debt,
-                    "note": f"سند قبض #{receipt_no} - {note_text}"
-                })
-                save_factory_data(factory_data)
-
-                pdf_payment_bytes = generate_payment_pdf(
-                    factory_name=current_factory_name,
-                    customer_name=sel_entity,
-                    date_str=datetime.now().strftime("%Y-%m-%d"),
-                    amount_usd=pay_amt,
-                    remaining_debt_usd=new_debt,
-                    old_debt_usd=curr_debt,
-                    exchange_rate=ex_rate,
-                    receipt_no=receipt_no,
-                    note=note_text
-                )
-
-                st.success(f"✅ تم القبض بنجاح. الدين المتبقي: ${new_debt:,.2f}")
-                st.toast("تم إصدار سند القبض بنجاح!", icon="💵")
-                
-                st.download_button(
-                    label="📥 تنزيل سند القبض الرسمي (PDF)",
-                    data=pdf_payment_bytes,
-                    file_name=f"سند_قبض_{receipt_no}_{sel_entity}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True,
-                )
-
-# تبويب تسجيل إنتاج براد
-with tabs[3]:
-    st.header("🏭 تسجيل عملية إنتاج براد جديد")
+# تبويب تسجيل إنتاج البرادات
+with tabs[1]:
+    st.header("🏭 تسجيل إنتاج برادات جديدة")
     model_list = list(factory_data["bom"].keys())
     
-    if not model_list:
-        st.warning("لا توجد نماذج برادات معرفة في النظام.")
-    else:
-        prod_model = st.selectbox("اختر نموذج البراد المصنوع:", model_list)
-        prod_count = st.number_input("العدد المصنوع:", min_value=1, value=1, step=1)
+    prod_model = st.selectbox("اختر نموذج البراد المراد إنتاجه:", model_list)
+    prod_count = st.number_input("العدد المصنوع:", min_value=1, value=1, step=1)
 
-        if st.button("🚀 تأكيد الإنتاج وخصم المواد الخام", type="primary", use_container_width=True):
-            required_bom = factory_data["bom"][prod_model]
-            missing_items = []
-            for raw_item, req_qty in required_bom.items():
-                needed = req_qty * prod_count
-                available = factory_data["inventory"].get(raw_item, 0.0)
-                if available < needed:
-                    missing_items.append(f"- **{raw_item}**: المطلوب ({needed})، المتوفر ({available:,.2f})")
+    if st.button("🚀 تأكيد الإنتاج وخصم المواد الخام أوتوماتيكياً", type="primary", use_container_width=True):
+        required_bom = factory_data["bom"][prod_model]
+        missing = []
+        for raw, req in required_bom.items():
+            needed = req * prod_count
+            available = factory_data["inventory"].get(raw, 0.0)
+            if available < needed:
+                missing.append(f"- **{raw}**: المطلوب ({needed})، المتوفر ({available:,.2f})")
 
-            if missing_items:
-                st.error("❌ لا يوجد مخزون مواد خام كافٍ لإتمام الإنتاج!")
-                for m in missing_items:
-                    st.write(m)
-            else:
-                for raw_item, req_qty in required_bom.items():
-                    factory_data["inventory"][raw_item] -= req_qty * prod_count
-                
-                factory_data["finished_goods"][prod_model] = factory_data["finished_goods"].get(prod_model, 0) + prod_count
-                factory_data["production_history"].append({
-                    "date": datetime.now().strftime("%Y-%m-%d"),
-                    "model": prod_model,
-                    "count": prod_count,
-                })
-                save_factory_data(factory_data)
-                st.success(f"✅ تم إنتاج ({prod_count}) من [{prod_model}] بنجاح وتحديث المواد الخام!")
-                st.toast("تم تسجيل عملية الإنتاج بنجاح!", icon="❄️")
+        if missing:
+            st.error("❌ المواد الخام غير كافية لإتمام الإنتاج:")
+            for m in missing:
+                st.write(m)
+        else:
+            for raw, req in required_bom.items():
+                factory_data["inventory"][raw] -= req * prod_count
+            
+            factory_data["finished_goods"][prod_model] = factory_data["finished_goods"].get(prod_model, 0) + prod_count
+            factory_data["production_history"].append({
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "model": prod_model,
+                "count": prod_count
+            })
+            save_factory_data(factory_data)
+            st.success(f"✅ تم إنتاج ({prod_count}) من [{prod_model}] بنجاح وخصم المواد من المخزن!")
 
-# تبويب الأسعار الرسمية
-with tabs[4]:
-    st.header("💲 إدارة الأسعار الثابتة للمنتجات والمواد الخام")
-    st.write("حدد هنا سعر البيع الثابت لكل براد أو مادة خام لتظهر مباشرة في نقطة البيع:")
-
-    prices_df = pd.DataFrame(
-        list(factory_data["prices"].items()),
-        columns=["اسم العنصر", "سعر البيع الثابت ($)"]
-    )
-    edited_prices = st.data_editor(prices_df, num_rows="dynamic", use_container_width=True)
-
-    if st.button("💾 حفظ الأسعار الثابتة", type="primary", use_container_width=True):
-        new_prices = {}
-        for _, row in edited_prices.iterrows():
-            if row["اسم العنصر"]:
-                new_prices[row["اسم العنصر"]] = float(row["سعر البيع الثابت ($)"])
-        factory_data["prices"] = new_prices
-        save_factory_data(factory_data)
-        st.success("✅ تم تحديث الأسعار بنجاح!")
-        st.toast("تم حفظ الأسعار الرسمية!", icon="💲")
-
-# تبويب إدارة المخزون
-with tabs[5]:
+# تبويب المخزون
+with tabs[2]:
     st.header("📦 إدارة المخزون والمواد الخام")
     
-    inv_tab1, inv_tab2 = st.tabs(["🧱 المواد الخام المتوفرة", "➕ تعديل وإضافة المواد الخام"])
+    st.subheader("🧊 البرادات الجاهزة بالمخزن")
+    fg_df = pd.DataFrame(list(factory_data["finished_goods"].items()), columns=["نوع البراد", "العدد الجاهز للبيع"])
+    st.dataframe(fg_df, use_container_width=True)
 
-    with inv_tab1:
-        st.subheader("حالة المواد الخام الحالية")
-        inv_df = pd.DataFrame(
-            list(factory_data["inventory"].items()),
-            columns=["اسم المادة الخام", "الكمية المتوفرة"]
-        )
-        st.dataframe(inv_df, use_container_width=True)
+    st.subheader("🧱 المواد الخام المتوفرة")
+    inv_df = pd.DataFrame(list(factory_data["inventory"].items()), columns=["المادة الخام", "الكمية المتوفرة"])
+    edited_inv = st.data_editor(inv_df, num_rows="dynamic", use_container_width=True)
 
-        st.subheader("🧊 البرادات الجاهزة بالمخزن")
-        fg_inventory_df = pd.DataFrame(
-            list(factory_data["finished_goods"].items()),
-            columns=["نوع البراد", "العدد الجاهز للبيع"]
-        )
-        st.dataframe(fg_inventory_df, use_container_width=True)
+    if st.button("💾 حفظ تعديلات المخزون", type="primary"):
+        new_inv = {}
+        for _, row in edited_inv.iterrows():
+            if str(row["المادة الخام"]).strip():
+                new_inv[str(row["المادة الخام"]).strip()] = float(row["الكمية المتوفرة"])
+        factory_data["inventory"] = new_inv
+        save_factory_data(factory_data)
+        st.success("✅ تم تحديث المخزون بنجاح!")
+        st.rerun()
 
-    with inv_tab2:
-        st.subheader("تعديل، زيادة، تنقيص، أو إضافة مادة خام جديدة")
-        edit_inv_df = pd.DataFrame(
-            list(factory_data["inventory"].items()),
-            columns=["اسم المادة الخام", "الكمية المتوفرة"]
-        )
-        
-        edited_inventory_table = st.data_editor(
-            edit_inv_df, 
-            num_rows="dynamic", 
-            use_container_width=True,
-            key="inventory_editor_table"
-        )
+# تبويب الأسعار
+with tabs[3]:
+    st.header("💲 الأسعار الثابتة للمنتجات والمواد")
+    prices_df = pd.DataFrame(list(factory_data["prices"].items()), columns=["العنصر", "السعر الثابت ($)"])
+    edited_prices = st.data_editor(prices_df, num_rows="dynamic", use_container_width=True)
 
-        if st.button("💾 حفظ التعديلات على المخزون", type="primary", use_container_width=True):
-            updated_inv = {}
-            for _, row in edited_inventory_table.iterrows():
-                item_name = str(row["اسم المادة الخام"]).strip()
-                if item_name:
-                    updated_inv[item_name] = float(row["الكمية المتوفرة"])
-            
-            factory_data["inventory"] = updated_inv
-            save_factory_data(factory_data)
-            st.success("✅ تم تحديث المخزون والكميات بنجاح!")
-            st.toast("تم حفظ تفاصيل المخزون بنجاح!", icon="📦")
-            st.rerun()
+    if st.button("💾 حفظ الأسعار", type="primary"):
+        new_pr = {}
+        for _, row in edited_prices.iterrows():
+            if str(row["العنصر"]).strip():
+                new_pr[str(row["العنصر"]).strip()] = float(row["السعر الثابت ($)"])
+        factory_data["prices"] = new_pr
+        save_factory_data(factory_data)
+        st.success("✅ تم حفظ الأسعار بنجاح!")
 
-# تبويب أنواع البرادات (BOM)
-with tabs[6]:
-    st.header("🛠️ إدارة نماذج البرادات وتعديل المواد الخام اللازمة لكل نموذج")
-    
+# تبويب هيكل البرادات (BOM)
+with tabs[4]:
+    st.header("🛠️ إدارة مكونات البرادات (BOM)")
     bom_models = list(factory_data["bom"].keys())
-    selected_bom_model = st.selectbox("اختر نموذج البراد للتعديل:", bom_models)
+    sel_model = st.selectbox("اختر نموذج البراد لتعديل مكوناته:", bom_models)
 
-    if selected_bom_model:
-        current_bom_data = factory_data["bom"][selected_bom_model]
-        st.subheader(f"المواد الخام المطلوبة لصنع: [{selected_bom_model}]")
-        
-        bom_df = pd.DataFrame(
-            list(current_bom_data.items()),
-            columns=["المادة الخام", "الكمية المطلوبة للبراد الواحد"]
-        )
-        
-        edited_bom_df = st.data_editor(bom_df, num_rows="dynamic", use_container_width=True, key=f"bom_edit_{selected_bom_model}")
+    if sel_model:
+        current_bom = factory_data["bom"][sel_model]
+        bom_df = pd.DataFrame(list(current_bom.items()), columns=["المادة الخام", "الكمية المطلوبة للبراد الواحد"])
+        edited_bom = st.data_editor(bom_df, num_rows="dynamic", use_container_width=True, key=f"bom_{sel_model}")
 
-        if st.button("💾 حفظ تعديلات هذا النموذج", type="primary", use_container_width=True):
+        if st.button("💾 حفظ مكونات النموذج", type="primary"):
             new_bom_dict = {}
-            for _, row in edited_bom_df.iterrows():
+            for _, row in edited_bom.iterrows():
                 raw_name = str(row["المادة الخام"]).strip()
                 if raw_name:
                     new_bom_dict[raw_name] = float(row["الكمية المطلوبة للبراد الواحد"])
-            
-            factory_data["bom"][selected_bom_model] = new_bom_dict
+            factory_data["bom"][sel_model] = new_bom_dict
             save_factory_data(factory_data)
-            st.success(f"✅ تم تحديث مكونات نموذج [{selected_bom_model}] بنجاح!")
-            st.toast("تم تحديث هيكل البراد (BOM)!", icon="🛠️")
+            st.success("✅ تم تحديث هيكل البراد بنجاح!")
 
     st.write("---")
-    st.subheader("➕ إضافة نموذج براد جديد كلياً")
-    new_model_name = st.text_input("اسم نموذج البراد الجديد:")
-    if st.button("إضافة النموذج", use_container_width=True):
+    st.subheader("➕ إضافة نموذج براد جديد")
+    new_model_name = st.text_input("اسم النموذج الجديد:")
+    if st.button("إضافة النموذج الجديد"):
         if new_model_name:
             if new_model_name in factory_data["bom"]:
-                st.error("هذا النموذج موجود مسبقاً!")
+                st.error("النموذج موجود مسبقاً!")
             else:
                 factory_data["bom"][new_model_name] = {}
                 factory_data["finished_goods"][new_model_name] = 0
                 factory_data["prices"][new_model_name] = 200.0
                 save_factory_data(factory_data)
-                st.success(f"✅ تمت إضافة النموذج [{new_model_name}] بنجاح!")
+                st.success(f"✅ تمت إضافة [{new_model_name}] بنجاح!")
                 st.rerun()
 
-# تبويب إعدادات النظام والأمان
-with tabs[7]:
-    st.header("⚙️ إعدادات النظام، بيانات الدخول، والأمان والحماية")
-    
-    st.subheader("🔒 تغيير اسم المستخدم وكلمة المرور")
-    current_admin_user = factory_data["info"].get("admin_user", "admin")
-    
-    new_user_input = st.text_input("اسم المستخدم الجديد:", value=current_admin_user)
-    new_pass_input = st.text_input("كلمة المرور الجديدة:", type="password")
+# تبويب التقارير
+with tabs[5]:
+    st.header("📊 سجل المبيعات والعمليات")
+    sales_hist = pd.DataFrame(factory_data.get("sales_history", []))
+    if sales_hist.empty:
+        st.info("لا توجد مبيعات مسجلة حتى الآن.")
+    else:
+        st.dataframe(sales_hist, use_container_width=True)
 
-    if st.button("تحديث بيانات الدخول", type="primary"):
-        if new_user_input and new_pass_input:
-            factory_data["info"]["admin_user"] = new_user_input
-            factory_data["info"]["admin_pass"] = new_pass_input
+# تبويب الإعدادات
+with tabs[6]:
+    st.header("⚙️ إعدادات النظام والأمان")
+    new_user = st.text_input("اسم المستخدم الجديد:", value=factory_data["info"].get("admin_user", "admin"))
+    new_pass = st.text_input("كلمة المرور الجديدة:", type="password")
+
+    if st.button("تحديث بيانات الدخول"):
+        if new_user and new_pass:
+            factory_data["info"]["admin_user"] = new_user
+            factory_data["info"]["admin_pass"] = new_pass
             save_factory_data(factory_data)
-            st.success("✅ تم تحديث بيانات الدخول بنجاح! يرجى إعادة تسجيل الدخول.")
-            st.toast("تم تحديث كلمة المرور!", icon="🔒")
-        else:
-            st.error("يرجى ملء الحقول بشكل صحيح.")
-
-    st.write("---")
-    st.subheader("🛡️ حماية وضمان عدم ضياع البيانات")
-    st.info("النظام يقوم أوتوماتيكياً بعمل نسخة احتياطية دورية في ملف (`backup_factory_data.json`) مع كل تعديل يتم إجراؤه لضمان الأمان التام.")
-
-    if st.button("📥 تنزيل نسخة احتياطية للبيانات (Backup)", use_container_width=True):
-        backup_json_str = json.dumps(factory_data, ensure_ascii=False, indent=4)
-        st.download_button(
-            label="تنزيل ملف النسخة الاحتياطية JSON",
-            data=backup_json_str,
-            file_name=f"backup_factory_{datetime.now().strftime('%Y-%m-%d')}.json",
-            mime="application/json",
-            use_container_width=True,
-        )
+            st.success("✅ تم تحديث بيانات الدخول بنجاح!")
