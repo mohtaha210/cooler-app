@@ -167,7 +167,7 @@ def save_factory_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# --- 2. دوال الطباعة والتصدير PDF (مطابقة تماماً للصورة بتوزيع الأعمدة والعناوين والتوقيع السفلي) ---
+# --- 2. دوال الطباعة والتصدير PDF (إلغاء جملة المعمل بالأعلى وإبقاء قائمة حساب، وتعديل التوقيع بالأسفل) ---
 def ar(text):
     if not text:
         return ""
@@ -207,7 +207,7 @@ def generate_new_account_statement_pdf(
     try:
         if os.path.exists(logo_path):
             pdf.image(logo_path, x=135, y=10, w=55)
-            pdf.set_y(32)
+            pdf.set_y(26)
         else:
             pdf.set_y(12)
     except Exception:
@@ -220,8 +220,8 @@ def generate_new_account_statement_pdf(
         pdf.set_font("Arial", "B", 12)
 
     pdf.set_text_color(0, 0, 0)
-    pdf.cell(0, 6, ar("معمل الرافدين للبرادات"), ln=True, align="C")
-    pdf.cell(0, 6, ar("قائمة حساب مبيعات (فاتورة)"), ln=True, align="C")
+    # إلغاء جملة معمل الرافدين للبرادات والإبقاء على قائمة حساب فقط
+    pdf.cell(0, 6, ar("قائمة حساب"), ln=True, align="C")
     pdf.ln(2)
 
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 10)
@@ -234,11 +234,10 @@ def generate_new_account_statement_pdf(
     pdf.ln(2)
 
     if items_data:
-        # ترتيب الأعمدة تماماً مثل الصورة: [الصنف، الإجمالي د.ع، الكمية، السعر ($)، الإجمالي ($)] بمعكوس اليمين لليسار أو الترتيب المظبوط
         col_widths = [46, 45, 25, 40, 30]
         headers = [ar("الصنف"), ar("الإجمالي (د.ع)"), ar("الكمية"), ar("السعر ($)"), ar("الإجمالي ($)")]
         for i, h in enumerate(headers):
-            is_shaded = i in [0, 2, 4] # الأعمدة المظللة مطابقة للصورة
+            is_shaded = i in [0, 2, 4]
             if is_shaded:
                 pdf.set_fill_color(210, 225, 245)
             else:
@@ -249,11 +248,11 @@ def generate_new_account_statement_pdf(
         for item in items_data:
             tot_iqd = item['total_usd'] * exchange_rate
             row_cells = [
-                (ar(item["model"]), True),                 # الصنف (مظلل)
-                (f"{tot_iqd:,.0f}", False),                # الإجمالي د.ع (أبيض)
-                (str(item["count"]), False),              # الكمية (أبيض)
-                (f"${item['price_usd']:,.2f}", False),     # السعر $ (أبيض)
-                (f"${item['total_usd']:,.2f}", True)       # الإجمالي $ (مظلل)
+                (ar(item["model"]), True),
+                (f"{tot_iqd:,.0f}", False),
+                (str(item["count"]), False),
+                (f"${item['price_usd']:,.2f}", False),
+                (f"${item['total_usd']:,.2f}", True)
             ]
             for j, (val, shaded) in enumerate(row_cells):
                 if shaded:
@@ -280,7 +279,8 @@ def generate_new_account_statement_pdf(
     
     pdf.ln(4)
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 10)
-    pdf.cell(186, 6, ar("توقيع وختم البائع / المستلم:"), ln=True, align="R")
+    # تعديل التوقيع بالأسفل ليصبح "توقيع وختم المعمل" فقط
+    pdf.cell(186, 6, ar("توقيع وختم المعمل:"), ln=True, align="R")
     sign_box_y = pdf.get_y()
     pdf.rect(12, sign_box_y, 186, 25)  
 
@@ -305,7 +305,7 @@ def generate_payment_pdf(
     try:
         if os.path.exists(logo_path):
             pdf.image(logo_path, x=135, y=10, w=55)
-            pdf.set_y(32)
+            pdf.set_y(26)
         else:
             pdf.set_y(12)
     except Exception:
@@ -318,7 +318,6 @@ def generate_payment_pdf(
         pdf.set_font("Arial", "B", 12)
 
     pdf.set_text_color(0, 0, 0)
-    pdf.cell(0, 6, ar("معمل الرافدين للبرادات"), ln=True, align="C")
     pdf.cell(0, 6, ar("سند قبض"), ln=True, align="C")
     pdf.ln(2)
 
@@ -351,7 +350,7 @@ def generate_payment_pdf(
     
     pdf.ln(4)
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 10)
-    pdf.cell(186, 6, ar("توقيع وختم القابض:"), ln=True, align="R")
+    pdf.cell(186, 6, ar("توقيع وختم المعمل:"), ln=True, align="R")
     sign_box_y = pdf.get_y()
     pdf.rect(12, sign_box_y, 186, 25)  
     
@@ -561,11 +560,11 @@ with tabs[tab_ag_idx]:
                     else:
                         st.error("يرجى كتابة كلمة (حذف) بشكل صحيح للتأكيد.")
 
-# --- 3. نافذة البيع المبسطة ---
+# --- 3. نافذة البيع المبسطة (محدثة لتشمل بيع المواد الخام وأجور الصيانة) ---
 tab_sale_idx = 2 if st.session_state.role == "admin" else 0
 with tabs[tab_sale_idx]:
     st.header("🛒 نافذة البيع المبسطة")
-    st.write("قم بإتمام عمليات البيع بنظام (نقداً، بالأجل، أو بالأقساط) لكل من الوكلاء والزبائن المباشرين بكل سهولة.")
+    st.write("قم بإتمام عمليات البيع (البرادات الجاهزة، المواد الخام، وأجور الصيانة) بنظام (نقداً، بالأجل، أو بالأقساط).")
 
     buyer_category = st.radio("تصنيف المشتري:", ["زبون مباشر", "وكيل مسجل"], horizontal=True, key="buyer_category_radio")
     
@@ -595,14 +594,13 @@ with tabs[tab_sale_idx]:
         exchange_rate = st.number_input("سعر صرف الدولار (د.ع):", min_value=1.0, value=1500.0, step=25.0, key="sale_exchange_rate_input")
 
     st.write("---")
-    st.subheader("📦 اختيار المنتجات والكميات:")
-    
-    bom_models = list(factory_data["bom"].keys())
     selected_items_list = []
     total_invoice_usd = 0.0
-    total_units_count = 0
     stock_shortage = False
 
+    # 1. قسم البرادات الجاهزة
+    st.subheader("🧊 البرادات الجاهزة")
+    bom_models = list(factory_data["bom"].keys())
     for model_name in bom_models:
         available_qty = factory_data["finished_goods"].get(model_name, 0)
         c_m1, c_m2, c_m3 = st.columns([2, 1, 1])
@@ -618,13 +616,60 @@ with tabs[tab_sale_idx]:
         if qty_bought > 0:
             item_tot = qty_bought * unit_price_usd
             total_invoice_usd += item_tot
-            total_units_count += qty_bought
             selected_items_list.append({
                 "model": model_name,
                 "count": qty_bought,
+                "type": "finished",
                 "price_usd": unit_price_usd,
                 "total_usd": item_tot
             })
+
+    # 2. قسم المواد الخام (تمت إضافته بناءً على الطلب)
+    st.subheader("🧱 المواد الخام")
+    raw_inventory = factory_data.get("inventory", {})
+    for raw_name, raw_avail in raw_inventory.items():
+        c_r1, c_r2, c_r3 = st.columns([2, 1, 1])
+        with c_r1:
+            st.write(f"مادة خام: **{raw_name}** (المتوفر: `{raw_avail}`)")
+        with c_r2:
+            qty_raw_bought = st.number_input("الكمية:", min_value=0.0, max_value=float(raw_avail), value=0.0, step=1.0, key=f"simp_raw_qty_{raw_name}")
+        with c_r3:
+            raw_unit_price = st.number_input("السعر ($):", min_value=0.0, value=0.0, step=5.0, key=f"simp_raw_pr_{raw_name}")
+
+        if qty_raw_bought > raw_avail:
+            stock_shortage = True
+        if qty_raw_bought > 0:
+            raw_tot = qty_raw_bought * raw_unit_price
+            total_invoice_usd += raw_tot
+            selected_items_list.append({
+                "model": f"مادة خام: {raw_name}",
+                "count": qty_raw_bought,
+                "type": "raw",
+                "raw_name": raw_name,
+                "price_usd": raw_unit_price,
+                "total_usd": raw_tot
+            })
+
+    # 3. قسم أجور الصيانة (تمت إضافته بناءً على الطلب)
+    st.subheader("🛠️ أجور الصيانة والخدمات")
+    c_maint1, c_maint2, c_maint3 = st.columns([2, 1, 1])
+    with c_maint1:
+        maint_desc = st.text_input("وصف خدمة الصيانة:", value="تصليح وصيانة براد", key="maintenance_desc_input")
+    with c_maint2:
+        maint_hours_or_count = st.number_input("العدد / الأجر:", min_value=0, value=0, step=1, key="maintenance_qty_input")
+    with c_maint3:
+        maint_price_usd = st.number_input("التكلفة ($):", min_value=0.0, value=0.0, step=5.0, key="maintenance_price_input")
+
+    if maint_hours_or_count > 0 and maint_price_usd > 0:
+        maint_tot = maint_hours_or_count * maint_price_usd
+        total_invoice_usd += maint_tot
+        selected_items_list.append({
+            "model": f"أجور صيانة: {maint_desc}",
+            "count": maint_hours_or_count,
+            "type": "maintenance",
+            "price_usd": maint_price_usd,
+            "total_usd": maint_tot
+        })
 
     st.markdown(f"### 💰 إجمالي الفاتورة: `${total_invoice_usd:,.2f}` (`{total_invoice_usd * exchange_rate:,.0f}` د.ع)")
 
@@ -652,13 +697,17 @@ with tabs[tab_sale_idx]:
         elif not customer_display_name.strip():
             st.error("يرجى إدخال اسم العميل.")
         elif not selected_items_list:
-            st.error("يرجى اختيار صنف واحد على الأقل.")
+            st.error("يرجى اختيار صنف أو خدمة واحدة على الأقل.")
         else:
             invoice_seq = factory_data.get("receipt_counter", 1001)
             factory_data["receipt_counter"] = invoice_seq + 1
 
+            # خصم المخزون حسب نوع العنصر المباع
             for item in selected_items_list:
-                factory_data["finished_goods"][item["model"]] -= item["count"]
+                if item["type"] == "finished":
+                    factory_data["finished_goods"][item["model"]] -= item["count"]
+                elif item["type"] == "raw":
+                    factory_data["inventory"][item["raw_name"]] -= item["count"]
 
             if remaining_debt_usd > 0:
                 if selected_agent_key and selected_agent_key in factory_data["agents"]:
