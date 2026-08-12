@@ -167,7 +167,7 @@ def save_factory_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# --- 2. دوال الطباعة والتصدير PDF (إلغاء جملة المعمل بالأعلى وإبقاء قائمة حساب، وتعديل التوقيع بالأسفل) ---
+# --- 2. دوال الطباعة والتصدير PDF ---
 def ar(text):
     if not text:
         return ""
@@ -220,7 +220,6 @@ def generate_new_account_statement_pdf(
         pdf.set_font("Arial", "B", 12)
 
     pdf.set_text_color(0, 0, 0)
-    # إلغاء جملة معمل الرافدين للبرادات والإبقاء على قائمة حساب فقط
     pdf.cell(0, 6, ar("قائمة حساب"), ln=True, align="C")
     pdf.ln(2)
 
@@ -279,7 +278,6 @@ def generate_new_account_statement_pdf(
     
     pdf.ln(4)
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 10)
-    # تعديل التوقيع بالأسفل ليصبح "توقيع وختم المعمل" فقط
     pdf.cell(186, 6, ar("توقيع وختم المعمل:"), ln=True, align="R")
     sign_box_y = pdf.get_y()
     pdf.rect(12, sign_box_y, 186, 25)  
@@ -560,7 +558,7 @@ with tabs[tab_ag_idx]:
                     else:
                         st.error("يرجى كتابة كلمة (حذف) بشكل صحيح للتأكيد.")
 
-# --- 3. نافذة البيع المبسطة (محدثة لتشمل بيع المواد الخام وأجور الصيانة) ---
+# --- 3. نافذة البيع المبسطة (وضع المواد الخام تحت زر توسيع/إخفاء منفصل) ---
 tab_sale_idx = 2 if st.session_state.role == "admin" else 0
 with tabs[tab_sale_idx]:
     st.header("🛒 نافذة البيع المبسطة")
@@ -624,33 +622,33 @@ with tabs[tab_sale_idx]:
                 "total_usd": item_tot
             })
 
-    # 2. قسم المواد الخام (تمت إضافته بناءً على الطلب)
-    st.subheader("🧱 المواد الخام")
-    raw_inventory = factory_data.get("inventory", {})
-    for raw_name, raw_avail in raw_inventory.items():
-        c_r1, c_r2, c_r3 = st.columns([2, 1, 1])
-        with c_r1:
-            st.write(f"مادة خام: **{raw_name}** (المتوفر: `{raw_avail}`)")
-        with c_r2:
-            qty_raw_bought = st.number_input("الكمية:", min_value=0.0, max_value=float(raw_avail), value=0.0, step=1.0, key=f"simp_raw_qty_{raw_name}")
-        with c_r3:
-            raw_unit_price = st.number_input("السعر ($):", min_value=0.0, value=0.0, step=5.0, key=f"simp_raw_pr_{raw_name}")
+    # 2. قسم المواد الخام (تحت زر توسيع/إخفاء بناءً على الطلب)
+    with st.expander("🧱 خيارات بيع المواد الخام (اضغط للعرض والإخفاء)"):
+        raw_inventory = factory_data.get("inventory", {})
+        for raw_name, raw_avail in raw_inventory.items():
+            c_r1, c_r2, c_r3 = st.columns([2, 1, 1])
+            with c_r1:
+                st.write(f"مادة خام: **{raw_name}** (المتوفر: `{raw_avail}`)")
+            with c_r2:
+                qty_raw_bought = st.number_input("الكمية:", min_value=0.0, max_value=float(raw_avail), value=0.0, step=1.0, key=f"simp_raw_qty_{raw_name}")
+            with c_r3:
+                raw_unit_price = st.number_input("السعر ($):", min_value=0.0, value=0.0, step=5.0, key=f"simp_raw_pr_{raw_name}")
 
-        if qty_raw_bought > raw_avail:
-            stock_shortage = True
-        if qty_raw_bought > 0:
-            raw_tot = qty_raw_bought * raw_unit_price
-            total_invoice_usd += raw_tot
-            selected_items_list.append({
-                "model": f"مادة خام: {raw_name}",
-                "count": qty_raw_bought,
-                "type": "raw",
-                "raw_name": raw_name,
-                "price_usd": raw_unit_price,
-                "total_usd": raw_tot
-            })
+            if qty_raw_bought > raw_avail:
+                stock_shortage = True
+            if qty_raw_bought > 0:
+                raw_tot = qty_raw_bought * raw_unit_price
+                total_invoice_usd += raw_tot
+                selected_items_list.append({
+                    "model": f"مادة خام: {raw_name}",
+                    "count": qty_raw_bought,
+                    "type": "raw",
+                    "raw_name": raw_name,
+                    "price_usd": raw_unit_price,
+                    "total_usd": raw_tot
+                })
 
-    # 3. قسم أجور الصيانة (تمت إضافته بناءً على الطلب)
+    # 3. قسم أجور الصيانة
     st.subheader("🛠️ أجور الصيانة والخدمات")
     c_maint1, c_maint2, c_maint3 = st.columns([2, 1, 1])
     with c_maint1:
