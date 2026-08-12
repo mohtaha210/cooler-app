@@ -69,10 +69,10 @@ def number_to_arabic_words(num):
         parts.append(convert_group(num))
     return " و ".join(parts).strip()
 
-# --- 1. هيكل البيانات لمعمل واحد ---
+# --- 1. هيكل البيانات لمعمل الرافدين ---
 def get_default_factory_data():
     return {
-        "info": {"factory_name": "مؤسسة الرافدين"},
+        "info": {"factory_name": "معمل الرافدين للبرادات"},
         "users": {
             "admin": {
                 "password": "123",
@@ -153,6 +153,8 @@ def load_factory_data():
                 data = json.load(f)
             if "users" not in data:
                 data["users"] = {"admin": {"password": "123", "role": "admin", "name": "المدير العام"}}
+            if "info" in data:
+                data["info"]["factory_name"] = "معمل الرافدين للبرادات"
             return data
         except Exception:
             return get_default_factory_data()
@@ -165,7 +167,7 @@ def save_factory_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# --- 2. دوال الطباعة والتصدير PDF ---
+# --- 2. دوال الطباعة والتصدير PDF (تصميم موحد يشبه سند القبض) ---
 def ar(text):
     if not text:
         return ""
@@ -201,65 +203,79 @@ def generate_new_account_statement_pdf(
     pdf.set_margins(12, 12, 12)
     pdf.add_page()
 
+    logo_path = "rafidain_logo.jpg"
+    try:
+        if os.path.exists(logo_path):
+            pdf.image(logo_path, x=135, y=10, w=55)
+            pdf.set_y(32)
+        else:
+            pdf.set_y(12)
+    except Exception:
+        pdf.set_y(12)
+
     if os.path.exists(font_path):
         pdf.add_font("Amiri", "", font_path)
-        pdf.set_font("Amiri", "", 20)
+        pdf.set_font("Amiri", "", 15)
     else:
-        pdf.set_font("Arial", "B", 18)
+        pdf.set_font("Arial", "B", 14)
 
-    pdf.set_text_color(15, 23, 42)
-    pdf.cell(0, 10, ar("قائمة حسابات"), ln=True, align="C")
-    pdf.ln(4)
+    pdf.set_text_color(0, 0, 0)
+    pdf.cell(0, 8, ar("معمل الرافدين للبرادات"), ln=True, align="C")
+    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 13)
+    pdf.cell(0, 7, ar("قائمة حساب مبيعات (فاتورة)"), ln=True, align="C")
+    pdf.ln(3)
 
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
-    pdf.cell(0, 7, ar(f"رقم القائمة: #{invoice_no}"), ln=True, align="R")
-    pdf.cell(0, 7, ar(f"التاريخ: {date_str}"), ln=True, align="R")
-    pdf.cell(0, 7, ar(f"اسم العميل / الوكيل: {customer_name}"), ln=True, align="R")
-    pdf.cell(0, 7, ar(f"نوع البيع: {payment_method_str}"), ln=True, align="R")
-    pdf.cell(0, 7, ar(f"سعر صرف الدولار المعتمد: {exchange_rate:,.0f} د.ع"), ln=True, align="R")
-    pdf.ln(5)
+    pdf.set_line_width(0.3)
+    pdf.cell(93, 7, ar(f"رقم القائمة: {invoice_no}"), border=1, align="R")
+    pdf.cell(93, 7, ar(f"التاريخ: {date_str}"), border=1, align="R", ln=True)
+    pdf.cell(93, 7, ar(f"اسم العميل / الزبون: {customer_name}"), border=1, align="R")
+    pdf.cell(93, 7, ar(f"طريقة الدفع: {payment_method_str}"), border=1, align="R", ln=True)
+    pdf.cell(186, 7, ar(f"سعر الصرف المعتمد: {exchange_rate:,.0f} د.ع"), border=1, align="R", ln=True)
+    pdf.ln(3)
 
     if items_data:
-        pdf.set_fill_color(30, 41, 59)
-        pdf.set_text_color(255, 255, 255)
-        col_widths = [45, 45, 25, 45, 26]
+        pdf.set_fill_color(210, 225, 245)
+        pdf.set_text_color(0, 0, 0)
+        col_widths = [46, 40, 25, 45, 30]
         headers = [ar("الإجمالي ($)"), ar("السعر ($)"), ar("الكمية"), ar("الإجمالي (د.ع)"), ar("الصنف")]
         for i, h in enumerate(headers):
-            pdf.cell(col_widths[i], 9, h, border=1, align="C", fill=True)
+            pdf.cell(col_widths[i], 8, h, border=1, align="C", fill=True)
         pdf.ln()
 
         pdf.set_fill_color(255, 255, 255)
-        pdf.set_text_color(33, 37, 41)
         for item in items_data:
             tot_iqd = item['total_usd'] * exchange_rate
-            pdf.cell(col_widths[0], 9, f"${item['total_usd']:,.2f}", border=1, align="C")
-            pdf.cell(col_widths[1], 9, f"${item['price_usd']:,.2f}", border=1, align="C")
-            pdf.cell(col_widths[2], 9, str(item["count"]), border=1, align="C")
-            pdf.cell(col_widths[3], 9, f"{tot_iqd:,.0f}", border=1, align="C")
-            pdf.cell(col_widths[4], 9, ar(item["model"]), border=1, align="C")
+            pdf.cell(col_widths[0], 7, f"${item['total_usd']:,.2f}", border=1, align="C")
+            pdf.cell(col_widths[1], 7, f"${item['price_usd']:,.2f}", border=1, align="C")
+            pdf.cell(col_widths[2], 7, str(item["count"]), border=1, align="C")
+            pdf.cell(col_widths[3], 7, f"{tot_iqd:,.0f}", border=1, align="C")
+            pdf.cell(col_widths[4], 7, ar(item["model"]), border=1, align="C")
             pdf.ln()
 
-    gt_iqd = grand_total_usd * exchange_rate
-    pd_iqd = paid_amount_usd * exchange_rate
-    rm_iqd = remaining_amount_usd * exchange_rate
+    gt_iqd = int(round(grand_total_usd * exchange_rate))
+    pd_iqd = int(round(paid_amount_usd * exchange_rate))
+    rm_iqd = int(round(remaining_amount_usd * exchange_rate))
 
-    pdf.ln(4)
-    pdf.set_fill_color(241, 245, 249)
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
+    total_in_words = f"المبلغ الإجمالي وقدره: {number_to_arabic_words(gt_iqd)} دينار عراقي فقط لا غير"
+    pdf.set_fill_color(210, 225, 245)
+    pdf.cell(186, 7, ar(total_in_words), border=1, align="R", fill=True, ln=True)
+
+    pdf.set_fill_color(255, 255, 255)
+    pdf.cell(93, 7, ar(f"المبلغ المدفوع: ${paid_amount_usd:,.2f} / {pd_iqd:,} د.ع"), border=1, align="R")
+    pdf.cell(93, 7, ar(f"المبلغ الإجمالي: ${grand_total_usd:,.2f} / {gt_iqd:,} د.ع"), border=1, align="R", ln=True)
+
+    pdf.set_fill_color(210, 225, 245)
+    pdf.cell(186, 7, ar(f"المبلغ المتبقي (الذمة المالية): ${remaining_amount_usd:,.2f} / {rm_iqd:,} د.ع"), border=1, align="R", fill=True, ln=True)
     
-    pdf.cell(60, 8, f"${grand_total_usd:,.2f} / {gt_iqd:,.0f} د.ع", border=1, align="C", fill=True)
-    pdf.cell(126, 8, ar("المبلغ الإجمالي"), border=1, align="C", fill=True)
-    pdf.ln()
+    pdf.set_fill_color(255, 255, 255)
+    pdf.ln(4)
 
-    pdf.cell(60, 8, f"${paid_amount_usd:,.2f} / {pd_iqd:,.0f} د.ع", border=1, align="C")
-    pdf.cell(126, 8, ar("المبلغ المدفوع"), border=1, align="C")
-    pdf.ln()
-
-    pdf.cell(60, 8, f"${remaining_amount_usd:,.2f} / {rm_iqd:,.0f} د.ع", border=1, align="C")
-    pdf.cell(126, 8, ar("المبلغ المتبقي (الذمة)"), border=1, align="C")
-    pdf.ln(15)
-
-    pdf.cell(0, 7, ar("توقيع المستلم: .........................."), ln=True, align="L")
+    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
+    pdf.cell(186, 7, ar("توقيع وختم البائع / المستلم:"), ln=True, align="R")
+    sign_box_y = pdf.get_y()
+    pdf.rect(12, sign_box_y, 186, 30)  
+    
     return bytes(pdf.output())
 
 def generate_payment_pdf(
@@ -294,7 +310,7 @@ def generate_payment_pdf(
         pdf.set_font("Arial", "B", 14)
 
     pdf.set_text_color(0, 0, 0)
-    pdf.cell(0, 8, ar("مؤسسة الرافدين"), ln=True, align="C")
+    pdf.cell(0, 8, ar("معمل الرافدين للبرادات"), ln=True, align="C")
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 13)
     pdf.cell(0, 7, ar("سند قبض"), ln=True, align="C")
     pdf.ln(3)
@@ -332,13 +348,13 @@ def generate_payment_pdf(
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
     pdf.cell(186, 7, ar("توقيع وختم القابض:"), ln=True, align="R")
     sign_box_y = pdf.get_y()
-    pdf.rect(12, sign_box_y, 186, 35)  
+    pdf.rect(12, sign_box_y, 186, 30)  
     
     return bytes(pdf.output())
 
 # --- 3. إعداد الصفحة والجلسة ---
 st.set_page_config(
-    page_title="نظام مؤسسة الرافدين",
+    page_title="معمل الرافدين للبرادات",
     page_icon="❄️",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -354,7 +370,7 @@ if "authenticated" not in st.session_state:
 
 # --- شاشة تسجيل الدخول ---
 if not st.session_state.authenticated:
-    st.title("❄️ تسجيل الدخول - مؤسسة الرافدين")
+    st.title("❄️ تسجيل الدخول - معمل الرافدين للبرادات")
     st.write("مرحباً بك في النظام الموحد لإدارة المعمل.")
     
     username_input = st.text_input("اسم المستخدم:")
