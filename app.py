@@ -305,9 +305,11 @@ def generate_payment_pdf(
     pdf.set_margins(12, 12, 12)
     pdf.add_page()
 
+    # --- إضافة الشعار في الجهة اليمنى مع التحكم بموقعه وحجمه ---
     logo_path = "rafidain_logo.jpg"
     try:
         if os.path.exists(logo_path):
+            # تم وضع الشعار في الجهة اليمنى (x=135) وبحجم مناسب (عرض 55 ملم)
             pdf.image(logo_path, x=135, y=10, w=55)
             pdf.set_y(32)
         else:
@@ -336,6 +338,7 @@ def generate_payment_pdf(
     amount_iqd = int(round(amount_usd * exchange_rate))
     amount_in_words = f"مبلغ وقدره: {number_to_arabic_words(amount_iqd)} دينار عراقي فقط لا غير"
     
+    # --- التظليل بدون خطوط تشطيب أمني ---
     pdf.set_fill_color(240, 243, 246)
     pdf.cell(186, 7, ar(amount_in_words), border=1, align="R", fill=True, ln=True)
     pdf.set_fill_color(255, 255, 255)
@@ -354,6 +357,7 @@ def generate_payment_pdf(
     
     pdf.ln(4)
 
+    # --- خانة توقيع وختم القابض (بارتفاع 3.5 سم) ---
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
     pdf.cell(186, 7, ar("توقيع وختم القابض:"), ln=True, align="R")
     sign_box_y = pdf.get_y()
@@ -981,7 +985,7 @@ if st.session_state.role == "admin":
 
         if st.button("🛠️ حفظ النموذج الجديد", use_container_width=True):
             if new_model_name and selected_ingredients:
-                factory_data["bom"][new_model_name] = selected_ingredients
+                factory_data["bom"][new_model_name]	= selected_ingredients
                 if new_model_name not in factory_data["finished_goods"]:
                     factory_data["finished_goods"][new_model_name] = 0
                 save_all_factories(all_factories)
