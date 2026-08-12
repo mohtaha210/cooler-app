@@ -73,8 +73,7 @@ def get_default_factory_data():
         },
         "receipt_counter": 1001,
         "sales_history": [],
-        "production_history": [],
-        "agent_transactions": []
+        "production_history": []
     }
 
 def load_factory_data():
@@ -142,7 +141,7 @@ def generate_receipt_pdf(
     pdf.cell(88, 6, ar(f"التاريخ: {date_str}"), align="R")
     
     pdf.set_xy(12, y_start + 7)
-    pdf.cell(90, 6, ar(f"اسم الوكيل / الزبون: {customer_name}"), align="R")
+    pdf.cell(90, 6, ar(f"اسم المشتري: {customer_name}"), align="R")
     pdf.set_xy(110, y_start + 7)
     pdf.cell(88, 6, ar(f"سعر الصرف: {exchange_rate:,.0f} د.ع"), align="R")
     
@@ -245,7 +244,7 @@ st.write("---")
 
 # --- 4. التبويبات الشاملة ---
 tabs = st.tabs([
-    "🛒 نقطة البيع المتطورة (POS)",
+    "🛒 بيع",
     "👥 إدارة الوكلاء والحسابات",
     "🏭 تسجيل إنتاج",
     "📦 المخزون",
@@ -255,25 +254,34 @@ tabs = st.tabs([
     "⚙️ الإعدادات"
 ])
 
+# تبويب بيع (متطور وبدون جداول إكسل، مع اختيار المشتري والدين)
 with tabs[0]:
-    st.header("🛒 نقطة البيع الحديثة (POS)")
+    st.header("🛒 نقطة البيع والطلبات")
     
-    agents_list = list(factory_data["agents"].keys())
-    selected_agent = st.selectbox("📌 اختر الوكيل / الزبون المتعامل:", agents_list)
+    # اختيار أو إدخال بيانات المشتري (وكيل أو زبون مباشر)
+    buyer_type = st.radio("نوع المشتري:", ["وكيل معتمد", "زبون مباشر جديد"], horizontal=True)
+    
+    if buyer_type == "وكيل معتمد":
+        agents_list = list(factory_data["agents"].keys())
+        selected_buyer = st.selectbox("اختر اسم الوكيل:", agents_list)
+        is_registered_agent = True
+    else:
+        selected_buyer = st.text_input("أدخل اسم الزبون المباشر (مثل: زبون نقدي / اسم الشخص):", value="زبون مباشر")
+        is_registered_agent = False
+
     exchange_rate = st.number_input("سعر صرف الدولار (د.ع مقابل $1):", min_value=1.0, value=1500.0, step=25.0)
+    sale_category = st.radio("تصنيف المواد المراد بيعها:", ["برادات جاهزة", "مواد خام"], horizontal=True)
     
-    sale_category = st.radio("نوع المنتجات:", ["برادات جاهزة", "مواد خام للمعمل"], horizontal=True)
     prices_dict = factory_data.get("prices", {})
     
     if "cart" not in st.session_state:
         st.session_state.cart = {}
 
     st.write("---")
-    col_catalog, col_cart = st.columns([1.3, 1])
+    col_cat, col_crt = st.columns([1.3, 1])
 
-    with col_catalog:
-        st.subheader("📦 كتالوج المنتجات المتاحة")
-        
+    with col_cat:
+        st.subheader("📦 المواد والمنتجات المتوفرة")
         if sale_category == "برادات جاهزة":
             for model, stock in factory_data["finished_goods"].items():
                 def_pr = prices_dict.get(model, 0.0)
@@ -281,22 +289,18 @@ with tabs[0]:
                     c1, c2, c3 = st.columns([2, 1, 1])
                     with c1:
                         st.markdown(f"**{model}**")
-                        st.caption(f"المتوفر بالمخزن: `{stock}` وحدة | السعر: `${def_pr}`")
+                        st.caption(f"المتوفر بالمخزن: `{stock}` وحدة | السعر الافتراضي: `${def_pr}`")
                     with c2:
-                        qty_to_add = st.number_input("الكمية", min_value=0, max_value=max(0, stock), value=0, key=f"pos_qty_{model}")
+                        q_add = st.number_input("الكمية", min_value=0, max_value=max(0, stock), value=0, key=f"p_qty_{model}")
                     with c3:
                         st.write("")
-                        if st.button("➕ إضافة", key=f"add_btn_{model}"):
-                            if qty_to_add > 0:
+                        if st.button("➕ إضافة للسلة", key=f"p_btn_{model}"):
+                            if q_add > 0:
                                 if model in st.session_state.cart:
-                                    st.session_state.cart[model]["count"] += qty_to_add
+                                    st.session_state.cart[model]["count"] += q_add
                                 else:
-                                    st.session_state.cart[model] = {
-                                        "count": qty_to_add,
-                                        "price_usd": def_pr,
-                                        "type": "finished"
-                                    }
-                                st.success(f"تمت إضافة {qty_to_add} من {model}")
+                                    st.session_state.cart[model] = {"count": q_add, "price_usd": def_pr, "type": "finished"}
+                                st.success(f"تمت إضافة {q_add} من {model}")
                                 st.rerun()
         else:
             for raw_name, stock in factory_data["inventory"].items():
@@ -307,29 +311,25 @@ with tabs[0]:
                         st.markdown(f"**{raw_name}**")
                         st.caption(f"المتوفر: `{stock:,.2f}` | السعر: `${def_pr}`")
                     with c2:
-                        qty_to_add = st.number_input("الكمية", min_value=0.0, max_value=float(stock) if stock>0 else 0.0, value=0.0, step=1.0, key=f"pos_raw_{raw_name}")
+                        q_add = st.number_input("الكمية", min_value=0.0, max_value=float(stock) if stock>0 else 0.0, value=0.0, step=1.0, key=f"r_qty_{raw_name}")
                     with c3:
                         st.write("")
-                        if st.button("➕ إضافة", key=f"add_raw_{raw_name}"):
-                            if qty_to_add > 0:
+                        if st.button("➕ إضافة للسلة", key=f"r_btn_{raw_name}"):
+                            if q_add > 0:
                                 if raw_name in st.session_state.cart:
-                                    st.session_state.cart[raw_name]["count"] += qty_to_add
+                                    st.session_state.cart[raw_name]["count"] += q_add
                                 else:
-                                    st.session_state.cart[raw_name] = {
-                                        "count": qty_to_add,
-                                        "price_usd": def_pr,
-                                        "type": "raw"
-                                    }
-                                st.success(f"تمت إضافة {qty_to_add} من {raw_name}")
+                                    st.session_state.cart[raw_name] = {"count": q_add, "price_usd": def_pr, "type": "raw"}
+                                st.success(f"تمت إضافة {q_add} من {raw_name}")
                                 st.rerun()
 
-    with col_cart:
-        st.subheader("🛍️ سلة المشتريات الحالية")
+    with col_crt:
+        st.subheader("🛍️ سلة الطلب الحالية")
         if not st.session_state.cart:
-            st.info("السلة فارغة حالياً. اختر المنتجات من اليسار لإضافتها.")
+            st.info("السلة فارغة. اختر المواد من القائمة بجانبها.")
         else:
             cart_grand_total = 0.0
-            items_to_remove = []
+            items_to_del = []
             
             for item_name, details in st.session_state.cart.items():
                 item_tot = details["count"] * details["price_usd"]
@@ -339,16 +339,16 @@ with tabs[0]:
                     st.markdown(f"**{item_name}**")
                     cc1, cc2 = st.columns([2, 1])
                     with cc1:
-                        new_p = st.number_input("السعر ($)", value=float(details["price_usd"]), key=f"cart_pr_{item_name}", step=5.0)
-                        st.session_state.cart[item_name]["price_usd"] = new_p
-                        st.text(f"الكمية: {details['count']} | الإجمالي: ${details['count'] * new_p:,.2f}")
+                        new_price = st.number_input("السعر ($)", value=float(details["price_usd"]), key=f"c_pr_{item_name}", step=5.0)
+                        st.session_state.cart[item_name]["price_usd"] = new_price
+                        st.text(f"الكمية: {details['count']} | الإجمالي: ${details['count'] * new_price:,.2f}")
                     with cc2:
                         st.write("")
-                        if st.button("❌ حذف", key=f"rem_{item_name}"):
-                            items_to_remove.append(item_name)
+                        if st.button("❌ حذف", key=f"del_{item_name}"):
+                            items_to_del.append(item_name)
             
-            for rem_item in items_to_remove:
-                del st.session_state.cart[rem_item]
+            for di in items_to_del:
+                del st.session_state.cart[di]
                 st.rerun()
 
             st.write("---")
@@ -358,76 +358,85 @@ with tabs[0]:
             st.markdown(f"### 💰 الصافي المطلوب: `${net_total_usd:,.2f}`")
             st.caption(f"بالدينار العراقي: `{net_total_usd * exchange_rate:,.0f}` د.ع")
 
-            paid_amount_usd = st.number_input("المبلغ المدفوع ($):", min_value=0.0, value=float(net_total_usd), step=10.0)
+            # حقل المبلغ المدفوع (مفتوح ليبين الدين المتبقي للوكيل أو الزبون)
+            paid_amount_usd = st.number_input("المبلغ المدفوع فعلياً ($):", min_value=0.0, value=0.0, step=10.0)
             remaining_amount_usd = max(0.0, net_total_usd - paid_amount_usd)
 
+            if remaining_amount_usd > 0:
+                st.warning(f"⚠️ سيتم تسجيل مبلغ **${remaining_amount_usd:,.2f}** كدين ذمي مستحق على المشتري.")
+
             if st.button("🚀 إتمام عملية البيع وإصدار الفاتورة", type="primary", use_container_width=True):
-                stock_ok = True
-                for item_name, details in st.session_state.cart.items():
-                    if details["type"] == "finished":
-                        if details["count"] > factory_data["finished_goods"].get(item_name, 0):
-                            stock_ok = False
-                    else:
-                        if details["count"] > factory_data["inventory"].get(item_name, 0.0):
-                            stock_ok = False
-
-                if not stock_ok:
-                    st.error("❌ الكمية المطلوبة تتجاوز المخزون المتوفر حالياً!")
+                if not selected_buyer.strip():
+                    st.error("❌ يرجى إدخال اسم المشتري أو اختيار وكيل صالح!")
                 else:
-                    receipt_no = factory_data.get("receipt_counter", 1001)
-                    final_items_list = []
-
+                    stock_ok = True
                     for item_name, details in st.session_state.cart.items():
-                        item_tot = details["count"] * details["price_usd"]
-                        final_items_list.append({
-                            "model": item_name,
-                            "count": details["count"],
-                            "price_usd": details["price_usd"],
-                            "total_usd": item_tot
-                        })
                         if details["type"] == "finished":
-                            factory_data["finished_goods"][item_name] -= int(details["count"])
+                            if details["count"] > factory_data["finished_goods"].get(item_name, 0):
+                                stock_ok = False
                         else:
-                            factory_data["inventory"][item_name] -= details["count"]
+                            if details["count"] > factory_data["inventory"].get(item_name, 0.0):
+                                stock_ok = False
 
-                    if selected_agent in factory_data["agents"]:
-                        factory_data["agents"][selected_agent]["balance"] += remaining_amount_usd
+                    if not stock_ok:
+                        st.error("❌ الكمية المطلوبة تتجاوز المخزون المتوفر حالياً!")
+                    else:
+                        receipt_no = factory_data.get("receipt_counter", 1001)
+                        final_items_list = []
 
-                    pdf_bytes = generate_receipt_pdf(
-                        factory_name=current_factory_name,
-                        customer_name=selected_agent,
-                        date_str=datetime.now().strftime("%Y-%m-%d"),
-                        items_data=final_items_list,
-                        grand_total_usd=cart_grand_total,
-                        discount_usd=discount_usd,
-                        net_total_usd=net_total_usd,
-                        paid_amount_usd=paid_amount_usd,
-                        remaining_amount_usd=remaining_amount_usd,
-                        exchange_rate=exchange_rate,
-                        receipt_no=receipt_no
-                    )
+                        for item_name, details in st.session_state.cart.items():
+                            item_tot = details["count"] * details["price_usd"]
+                            final_items_list.append({
+                                "model": item_name,
+                                "count": details["count"],
+                                "price_usd": details["price_usd"],
+                                "total_usd": item_tot
+                            })
+                            if details["type"] == "finished":
+                                factory_data["finished_goods"][item_name] -= int(details["count"])
+                            else:
+                                factory_data["inventory"][item_name] -= details["count"]
 
-                    factory_data["sales_history"].append({
-                        "receipt_no": receipt_no,
-                        "date": datetime.now().strftime("%Y-%m-%d"),
-                        "customer": selected_agent,
-                        "total_usd": net_total_usd,
-                        "remaining_usd": remaining_amount_usd
-                    })
-                    factory_data["receipt_counter"] = receipt_no + 1
-                    save_factory_data(factory_data)
+                        # إذا كان وكيل معتمد، قم بتسجيل الدين في حسابه
+                        if is_registered_agent and selected_buyer in factory_data["agents"]:
+                            factory_data["agents"][selected_buyer]["balance"] += remaining_amount_usd
 
-                    st.success("✅ تمت عملية البيع بنجاح وتحديث حساب الوكيل والمخزون!")
-                    st.session_state.cart = {}
+                        pdf_bytes = generate_receipt_pdf(
+                            factory_name=current_factory_name,
+                            customer_name=selected_buyer,
+                            date_str=datetime.now().strftime("%Y-%m-%d"),
+                            items_data=final_items_list,
+                            grand_total_usd=cart_grand_total,
+                            discount_usd=discount_usd,
+                            net_total_usd=net_total_usd,
+                            paid_amount_usd=paid_amount_usd,
+                            remaining_amount_usd=remaining_amount_usd,
+                            exchange_rate=exchange_rate,
+                            receipt_no=receipt_no
+                        )
 
-                    st.download_button(
-                        label="📥 تحميل القائمة الرسمية (PDF)",
-                        data=pdf_bytes,
-                        file_name=f"قائمة_حساب_{receipt_no}.pdf",
-                        mime="application/pdf",
-                        use_container_width=True
-                    )
+                        factory_data["sales_history"].append({
+                            "receipt_no": receipt_no,
+                            "date": datetime.now().strftime("%Y-%m-%d"),
+                            "customer": selected_buyer,
+                            "total_usd": net_total_usd,
+                            "remaining_usd": remaining_amount_usd
+                        })
+                        factory_data["receipt_counter"] = receipt_no + 1
+                        save_factory_data(factory_data)
 
+                        st.success("✅ تمت عملية البيع بنجاح وتحديث الحسابات والمخزون!")
+                        st.session_state.cart = {}
+
+                        st.download_button(
+                            label="📥 تحميل القائمة الرسمية (PDF)",
+                            data=pdf_bytes,
+                            file_name=f"قائمة_حساب_{receipt_no}.pdf",
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+
+# تبويب إدارة الوكلاء والحسابات
 with tabs[1]:
     st.header("👥 إدارة الوكلاء والحسابات والديون الذمية")
     
@@ -443,11 +452,7 @@ with tabs[1]:
                 if ag_name in factory_data["agents"]:
                     st.error("الوكيل موجود مسبقاً!")
                 else:
-                    factory_data["agents"][ag_name] = {
-                        "phone": ag_phone,
-                        "address": ag_addr,
-                        "balance": 0.0
-                    }
+                    factory_data["agents"][ag_name] = {"phone": ag_phone, "address": ag_addr, "balance": 0.0}
                     save_factory_data(factory_data)
                     st.success(f"✅ تمت إضافة الوكيل [{ag_name}] بنجاح!")
                     st.rerun()
@@ -480,6 +485,7 @@ with tabs[1]:
             st.success(f"✅ تم تسديد مبلغ ${payment_amt:,.2f} بنجاح للوكيل [{pay_agent}]!")
             st.rerun()
 
+# تبويب تسجيل إنتاج البرادات
 with tabs[2]:
     st.header("🏭 تسجيل إنتاج برادات جديدة")
     model_list = list(factory_data["bom"].keys())
@@ -513,6 +519,7 @@ with tabs[2]:
             save_factory_data(factory_data)
             st.success(f"✅ تم إنتاج ({prod_count}) من [{prod_model}] بنجاح وخصم المواد من المخزن!")
 
+# تبويب المخزون
 with tabs[3]:
     st.header("📦 إدارة المخزون والمواد الخام")
     
@@ -534,6 +541,7 @@ with tabs[3]:
         st.success("✅ تم تحديث المخزون بنجاح!")
         st.rerun()
 
+# تبويب الأسعار
 with tabs[4]:
     st.header("💲 الأسعار الثابتة للمنتجات والمواد")
     prices_df = pd.DataFrame(list(factory_data["prices"].items()), columns=["العنصر", "السعر الثابت ($)"])
@@ -548,41 +556,72 @@ with tabs[4]:
         save_factory_data(factory_data)
         st.success("✅ تم حفظ الأسعار بنجاح!")
 
+# تبويب هيكل البرادات (BOM) - مصمم بدون جداول إكسل مع خيارات منسدلة واضحة
 with tabs[5]:
     st.header("🛠️ إدارة مكونات البرادات (BOM)")
+    
+    # اختيار أو إضافة نموذج
     bom_models = list(factory_data["bom"].keys())
-    sel_model = st.selectbox("اختر نموذج البراد لتعديل مكوناته:", bom_models)
-
-    if sel_model:
-        current_bom = factory_data["bom"][sel_model]
-        bom_df = pd.DataFrame(list(current_bom.items()), columns=["المادة الخام", "الكمية المطلوبة للبراد الواحد"])
-        edited_bom = st.data_editor(bom_df, num_rows="dynamic", use_container_width=True, key=f"bom_{sel_model}")
-
-        if st.button("💾 حفظ مكونات النموذج", type="primary"):
-            new_bom_dict = {}
-            for _, row in edited_bom.iterrows():
-                raw_name = str(row["المادة الخام"]).strip()
-                if raw_name:
-                    new_bom_dict[raw_name] = float(row["الكمية المطلوبة للبراد الواحد"])
-            factory_data["bom"][sel_model] = new_bom_dict
-            save_factory_data(factory_data)
-            st.success("✅ تم تحديث هيكل البراد بنجاح!")
+    selected_bom_model = st.selectbox("اختر نموذج البراد لتعديله أو إضافة مكونات له:", bom_models)
 
     st.write("---")
-    st.subheader("➕ إضافة نموذج براد جديد")
-    new_model_name = st.text_input("اسم النموذج الجديد:")
-    if st.button("إضافة النموذج الجديد"):
-        if new_model_name:
-            if new_model_name in factory_data["bom"]:
-                st.error("النموذج موجود مسبقاً!")
-            else:
-                factory_data["bom"][new_model_name] = {}
-                factory_data["finished_goods"][new_model_name] = 0
-                factory_data["prices"][new_model_name] = 200.0
-                save_factory_data(factory_data)
-                st.success(f"✅ تمت إضافة [{new_model_name}] بنجاح!")
-                st.rerun()
+    st.subheader(f"⚙️ تعديل مكونات البراد: [{selected_bom_model}]")
+    
+    # عرض المكونات الحالية كقائمة تفاعلية وليست جدول إكسل
+    current_bom = factory_data["bom"].get(selected_bom_model, {})
+    
+    with st.form(f"form_bom_{selected_bom_model}"):
+        st.markdown("**حدد المواد الخام والكمية المطلوبة للبراد الواحد:**")
+        updated_bom_dict = {}
+        
+        # قائمة بكل المواد الخام المتاحة بالمخزن لربطها بسهولة
+        all_raw_materials = list(factory_data["inventory"].keys())
+        
+        # لعرض المواد الحالية أو إضافة مواد جديدة بسهولة عبر واجهة نظيفة
+        col_r1, col_r2 = st.columns(2)
+        
+        # استخدام القوائم المنسدلة والعدد لتجنب الكتابة اليدوية وجداول الإكسل المعقدة
+        selected_raws = st.multiselect(
+            "اختر المواد الخام الداخلة في تركيب هذا البراد:",
+            options=all_raw_materials,
+            default=list(current_bom.keys())
+        )
+        
+        quantities_dict = {}
+        if selected_raws:
+            st.write("حدد كمية كل مادة للبراد الواحد:")
+            for raw in selected_raws:
+                def_val = float(current_bom.get(raw, 1.0))
+                quantities_dict[raw] = st.number_input(f"كمية ({raw}) للبراد الواحد:", min_value=0.01, value=def_val, step=0.25, key=f"qty_raw_{selected_bom_model}_{raw}")
 
+        submit_bom = st.form_submit_button("💾 حفظ هيكل البراد", type="primary")
+        
+        if submit_bom:
+            for raw in selected_raws:
+                updated_bom_dict[raw] = quantities_dict[raw]
+            factory_data["bom"][selected_bom_model] = updated_bom_dict
+            save_factory_data(factory_data)
+            st.success(f"✅ تم حفظ مكونات نموذج [{selected_bom_model}] بنجاح!")
+            st.rerun()
+
+    st.write("---")
+    st.subheader("➕ إضافة نموذج براد جديد كلياً")
+    with st.form("new_model_form"):
+        new_model_name = st.text_input("اسم نموذج البراد الجديد:")
+        sub_new_model = st.form_submit_button("إضافة النموذج")
+        if sub_new_model:
+            if new_model_name:
+                if new_model_name in factory_data["bom"]:
+                    st.error("النموذج موجود مسبقاً!")
+                else:
+                    factory_data["bom"][new_model_name] = {}
+                    factory_data["finished_goods"][new_model_name] = 0
+                    factory_data["prices"][new_model_name] = 200.0
+                    save_factory_data(factory_data)
+                    st.success(f"✅ تمت إضافة النموذج [{new_model_name}] بنجاح! يمكنك الآن تعديل مكوناته بالأعلى.")
+                    st.rerun()
+
+# تبويب التقارير
 with tabs[6]:
     st.header("📊 سجل المبيعات والعمليات")
     sales_hist = pd.DataFrame(factory_data.get("sales_history", []))
@@ -591,6 +630,7 @@ with tabs[6]:
     else:
         st.dataframe(sales_hist, use_container_width=True)
 
+# تبويب الإعدادات
 with tabs[7]:
     st.header("⚙️ إعدادات النظام والأمان")
     new_user = st.text_input("اسم المستخدم الجديد:", value=factory_data["info"].get("admin_user", "admin"))
