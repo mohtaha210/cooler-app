@@ -167,7 +167,7 @@ def save_factory_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# --- 2. دوال الطباعة والتصدير PDF (تصميم موحد يشبه سند القبض) ---
+# --- 2. دوال الطباعة والتصدير PDF (تصميم معدل حسب الطلب) ---
 def ar(text):
     if not text:
         return ""
@@ -220,9 +220,8 @@ def generate_new_account_statement_pdf(
         pdf.set_font("Arial", "B", 14)
 
     pdf.set_text_color(0, 0, 0)
-    pdf.cell(0, 8, ar("معمل الرافدين للبرادات"), ln=True, align="C")
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 13)
-    pdf.cell(0, 7, ar("قائمة حساب مبيعات (فاتورة)"), ln=True, align="C")
+    # تم إزالة جملة اسم المعمل والبقي فقط عنوان "قائمة حساب" بالأعلى
+    pdf.cell(0, 8, ar("قائمة حساب"), ln=True, align="C")
     pdf.ln(3)
 
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
@@ -235,22 +234,29 @@ def generate_new_account_statement_pdf(
     pdf.ln(3)
 
     if items_data:
+        # تضليل (ألوان خلفية) للأسعار والمبالغ
         pdf.set_fill_color(210, 225, 245)
         pdf.set_text_color(0, 0, 0)
         col_widths = [46, 40, 25, 45, 30]
         headers = [ar("الإجمالي ($)"), ar("السعر ($)"), ar("الكمية"), ar("الإجمالي (د.ع)"), ar("الصنف")]
         for i, h in enumerate(headers):
-            pdf.cell(col_widths[i], 8, h, border=1, align="C", fill=True)
+            # الأعمدة المتعلقة بالأسعار والمبالغ (0, 1, 3) مضللة، والكمية والصنف بيضاء
+            is_shaded = i in [0, 1, 3]
+            pdf.cell(col_widths[i], 8, h, border=1, align="C", fill=is_shaded)
         pdf.ln()
 
-        pdf.set_fill_color(255, 255, 255)
         for item in items_data:
             tot_iqd = item['total_usd'] * exchange_rate
-            pdf.cell(col_widths[0], 7, f"${item['total_usd']:,.2f}", border=1, align="C")
-            pdf.cell(col_widths[1], 7, f"${item['price_usd']:,.2f}", border=1, align="C")
-            pdf.cell(col_widths[2], 7, str(item["count"]), border=1, align="C")
-            pdf.cell(col_widths[3], 7, f"{tot_iqd:,.0f}", border=1, align="C")
-            pdf.cell(col_widths[4], 7, ar(item["model"]), border=1, align="C")
+            # تضليل خانات الأسرار والمبالغ لكل صف
+            pdf.set_fill_color(210, 225, 245)
+            pdf.cell(col_widths[0], 7, f"${item['total_usd']:,.2f}", border=1, align="C", fill=True)
+            pdf.cell(col_widths[1], 7, f"${item['price_usd']:,.2f}", border=1, align="C", fill=True)
+            pdf.set_fill_color(255, 255, 255)
+            pdf.cell(col_widths[2], 7, str(item["count"]), border=1, align="C", fill=True)
+            pdf.set_fill_color(210, 225, 245)
+            pdf.cell(col_widths[3], 7, f"{tot_iqd:,.0f}", border=1, align="C", fill=True)
+            pdf.set_fill_color(255, 255, 255)
+            pdf.cell(col_widths[4], 7, ar(item["model"]), border=1, align="C", fill=True)
             pdf.ln()
 
     gt_iqd = int(round(grand_total_usd * exchange_rate))
@@ -262,20 +268,16 @@ def generate_new_account_statement_pdf(
     pdf.cell(186, 7, ar(total_in_words), border=1, align="R", fill=True, ln=True)
 
     pdf.set_fill_color(255, 255, 255)
-    pdf.cell(93, 7, ar(f"المبلغ المدفوع: ${paid_amount_usd:,.2f} / {pd_iqd:,} د.ع"), border=1, align="R")
-    pdf.cell(93, 7, ar(f"المبلغ الإجمالي: ${grand_total_usd:,.2f} / {gt_iqd:,} د.ع"), border=1, align="R", ln=True)
+    pdf.cell(93, 7, ar(f"المبلغ المدفوع: ${paid_amount_usd:,.2f}  /  {pd_iqd:,} د.ع"), border=1, align="R", fill=True)
+    pdf.cell(93, 7, ar(f"المبلغ الإجمالي: ${grand_total_usd:,.2f}  /  {gt_iqd:,} د.ع"), border=1, align="R", fill=True, ln=True)
 
     pdf.set_fill_color(210, 225, 245)
-    pdf.cell(186, 7, ar(f"المبلغ المتبقي (الذمة المالية): ${remaining_amount_usd:,.2f} / {rm_iqd:,} د.ع"), border=1, align="R", fill=True, ln=True)
+    pdf.cell(186, 7, ar(f"المبلغ المتبقي (الذمة المالية): ${remaining_amount_usd:,.2f}  /  {rm_iqd:,} د.ع"), border=1, align="R", fill=True, ln=True)
     
     pdf.set_fill_color(255, 255, 255)
     pdf.ln(4)
 
-    pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 11)
-    pdf.cell(186, 7, ar("توقيع وختم البائع / المستلم:"), ln=True, align="R")
-    sign_box_y = pdf.get_y()
-    pdf.rect(12, sign_box_y, 186, 30)  
-    
+    # إزالة توقيع وختم المعمل نهائياً بناءً على الطلب
     return bytes(pdf.output())
 
 def generate_payment_pdf(
