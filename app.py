@@ -238,7 +238,7 @@ def generate_new_account_statement_pdf(
     
     pdf.ln(4)
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 10)
-    pdf.cell(186, 6, ar("توقيع سمائل التاجر:"), ln=True, align="R")
+    pdf.cell(186, 6, ar("توقيع معمل الرافدين:"), ln=True, align="R")
     sign_box_y = pdf.get_y()
     pdf.rect(12, sign_box_y, 186, 22)
     return bytes(pdf.output())
@@ -289,12 +289,12 @@ def generate_payment_pdf(
     
     pdf.ln(4)
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 10)
-    pdf.cell(186, 6, ar("توقيع سمائل التاجر:"), ln=True, align="R")
+    pdf.cell(186, 6, ar("توقيع معمل الرافدين:"), ln=True, align="R")
     sign_box_y = pdf.get_y()
     pdf.rect(12, sign_box_y, 186, 22)
     return bytes(pdf.output())
 
-# --- 3. إعداد الصفحة وتصميم الوضع الداكن بلمسات فقاعات الماء (Aqua Dark Theme) ---
+# --- 3. إعداد الصفحة وتصميم الوضع الداكن (Aqua Dark Theme) ---
 st.set_page_config(
     page_title="معمل الرافدين للبرادات",
     page_icon="💧",
@@ -306,7 +306,6 @@ st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap');
     
-    /* خلفية عامة داكنة نقية */
     html, body, [class*="css"] {
         font-family: 'Cairo', sans-serif;
         direction: rtl;
@@ -315,12 +314,10 @@ st.markdown("""
         color: #e2e8f0;
     }
     
-    /* تأثير فقاعات الماء والعناصر الزجاجية الداكنة */
     .stApp {
         background: radial-gradient(circle at 20% 20%, #112244 0%, #0b1329 60%, #070a14 100%);
     }
     
-    /* الحاويات والكروت بتصميم زجاجي عائم */
     div.stExpander, div.stTabs, div[data-testid="stForm"], div[data-testid="stVerticalBlock"] > div {
         background-color: rgba(17, 34, 68, 0.6) !important;
         border-radius: 16px !important;
@@ -329,7 +326,6 @@ st.markdown("""
         backdrop-filter: blur(8px);
     }
     
-    /* حقول الإدخال بتصميم فقاعات الماء المضيئة */
     input, select, textarea, div[data-baseweb="select"] > div {
         background-color: rgba(7, 18, 38, 0.8) !important;
         color: #38bdf8 !important;
@@ -342,7 +338,6 @@ st.markdown("""
         box-shadow: 0 0 15px rgba(56, 189, 248, 0.4) !important;
     }
     
-    /* الأزرار بلمسات مائية ساطعة */
     .stButton>button {
         background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
         color: #ffffff;
@@ -359,7 +354,6 @@ st.markdown("""
         background: linear-gradient(135deg, #0369a1 0%, #0ea5e9 100%);
     }
     
-    /* الميتريكس والأرقام */
     div[data-testid="stMetricValue"] {
         font-size: 2rem;
         font-weight: 900;
@@ -372,13 +366,11 @@ st.markdown("""
         font-weight: 600;
     }
     
-    /* النصوص والعناوين */
     h1, h2, h3, h4 {
         color: #f1f5f9 !important;
         text-shadow: 0 2px 4px rgba(0,0,0,0.5);
     }
     
-    /* الجداول */
     dataframe, table {
         background-color: rgba(11, 19, 41, 0.9) !important;
         color: #cbd5e1 !important;
@@ -518,48 +510,48 @@ with tabs[tab_ag_idx]:
         if not agents_list:
             st.info("لا توجد حسابات وكلاء مسجلة حالياً.")
         else:
-            with st.form("payment_form"):
-                sel_agent = st.selectbox("اختر الوكيل / الزبون:", agents_list, key="pay_agent_select")
-                cur_debt = factory_data["agents"][sel_agent].get("debt_usd", 0.0)
-                st.info(f"الذمة المالية الحالية على [{sel_agent}]: **${cur_debt:,.2f}**")
+            sel_agent = st.selectbox("اختر الوكيل / الزبون:", agents_list, key="pay_agent_select")
+            cur_debt = factory_data["agents"][sel_agent].get("debt_usd", 0.0)
+            st.info(f"الذمة المالية الحالية على [{sel_agent}]: **${cur_debt:,.2f}**")
+            
+            pay_amt = st.number_input("المبلغ المدفوع ($):", min_value=0.01, value=100.0, step=25.0, key="pay_amount_input")
+            ex_rate = st.number_input("سعر صرف الدولار (د.ع):", min_value=1.0, value=1500.0, step=25.0, key="pay_rate_input")
+            pay_note = st.text_input("ملاحظات السند:", value="تسديد نقدآ", key="pay_note_input")
+            
+            submit_pay = st.button("💵 تأكيد القبض وطباعة السند", type="primary", use_container_width=True, key="pay_submit_btn")
+            
+            if submit_pay:
+                new_debt = cur_debt - pay_amt
+                factory_data["agents"][sel_agent]["debt_usd"] = new_debt
+                receipt_no = factory_data.get("receipt_counter", 1001)
+                factory_data["receipt_counter"] = receipt_no + 1
+                factory_data["agents"][sel_agent].setdefault("transactions", []).append({
+                    "date": datetime.now().strftime("%Y-%m-%d"),
+                    "type": "تسديد",
+                    "amount_usd": -pay_amt,
+                    "balance_usd": new_debt,
+                    "note": f"سند قبض #{receipt_no}"
+                })
+                save_factory_data(factory_data)
+                st.success("✅ تم إتمام سند القبض وتحديث الحساب بنجاح!")
                 
-                pay_amt = st.number_input("المبلغ المدفوع ($):", min_value=0.01, value=100.0, step=25.0, key="pay_amount_input")
-                ex_rate = st.number_input("سعر صرف الدولار (د.ع):", min_value=1.0, value=1500.0, step=25.0, key="pay_rate_input")
-                pay_note = st.text_input("ملاحظات السند:", value="تسديد نقدآ", key="pay_note_input")
-                submit_pay = st.form_submit_button("💵 تأكيد القبض وطباعة السند", use_container_width=True)
-                
-                if submit_pay:
-                    new_debt = cur_debt - pay_amt
-                    factory_data["agents"][sel_agent]["debt_usd"] = new_debt
-                    receipt_no = factory_data.get("receipt_counter", 1001)
-                    factory_data["receipt_counter"] = receipt_no + 1
-                    factory_data["agents"][sel_agent].setdefault("transactions", []).append({
-                        "date": datetime.now().strftime("%Y-%m-%d"),
-                        "type": "تسديد",
-                        "amount_usd": -pay_amt,
-                        "balance_usd": new_debt,
-                        "note": f"سند قبض #{receipt_no}"
-                    })
-                    save_factory_data(factory_data)
-                    st.success("✅ تم إتمام سند القبض وتحديث الحساب بنجاح!")
-                    
-                    pdf_bytes = generate_payment_pdf(
-                        agent_name=sel_agent,
-                        date_str=datetime.now().strftime("%Y-%m-%d"),
-                        amount_usd=pay_amt,
-                        remaining_debt_usd=new_debt,
-                        old_debt_usd=cur_debt,
-                        exchange_rate=ex_rate,
-                        receipt_no=receipt_no,
-                        note=pay_note
-                    )
-                    st.download_button(
-                        label="📥 تنزيل سند القبض (PDF)",
-                        data=pdf_bytes,
-                        file_name=f"سند_قبض_{receipt_no}_{sel_agent}.pdf",
-                        mime="application/pdf",
-                        use_container_width=True
-                    )
+                pdf_bytes = generate_payment_pdf(
+                    agent_name=sel_agent,
+                    date_str=datetime.now().strftime("%Y-%m-%d"),
+                    amount_usd=pay_amt,
+                    remaining_debt_usd=new_debt,
+                    old_debt_usd=cur_debt,
+                    exchange_rate=ex_rate,
+                    receipt_no=receipt_no,
+                    note=pay_note
+                )
+                st.download_button(
+                    label="📥 تنزيل سند القبض (PDF)",
+                    data=pdf_bytes,
+                    file_name=f"سند_قبض_{receipt_no}_{sel_agent}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
 
     with ag_sub3:
         st.subheader("كشف الحساب التفصيلي")
