@@ -173,7 +173,6 @@ def load_factory_data():
                 data["users"] = {"admin": {"password": "123", "role": "admin", "name": "المدير العام"}}
             if "info" in data:
                 data["info"]["factory_name"] = "معمل الرافدين للبرادات"
-            # توافقية الهيكل القديم للمخزون
             for k, v in data.get("inventory", {}).items():
                 if not isinstance(v, dict):
                     data["inventory"][k] = {"qty": float(v), "unit": "قطعة"}
@@ -265,7 +264,7 @@ def generate_new_account_statement_pdf(
         col_widths = [46, 45, 25, 40, 30]
         headers = [ar("الصنف"), ar("الإجمالي (د.ع)"), ar("الكمية"), ar("السعر ($)"), ar("الإجمالي ($)")]
         for i, h in enumerate(headers):
-            pdf.set_fill_color(240, 245, 250) # تظليل خفيف ومريح
+            pdf.set_fill_color(240, 245, 250)
             pdf.cell(col_widths[i], 7, h, border=1, align="C", fill=True)
         pdf.ln()
 
@@ -433,7 +432,7 @@ with col_u2:
 
 st.write("---")
 
-# --- التبويبات الرئيسية (مرتبة ومختصرة بكلمة أو كلمتين) ---
+# --- التبويبات الرئيسية ---
 if st.session_state.role == "admin":
     tabs = st.tabs([
         "📊 التقارير",
@@ -627,7 +626,8 @@ with tabs[tab_sale_idx]:
 
     st.subheader("🧊 اختيار البرادات")
     bom_models = list(factory_data["finished_goods"].keys())
-    for model_name in model_list := bom_models:
+    model_list = bom_models
+    for model_name in model_list:
         fg_info = factory_data["finished_goods"][model_name]
         available_qty = fg_info["qty"]
         fixed_price = fg_info["price"]
@@ -944,7 +944,7 @@ with tabs[tab_prod_idx]:
                 st.success(f"✅ تم إنتاج ({prod_qty}) من [{prod_model}] بنجاح وخصم المواد الخام تلقائياً!")
                 st.rerun()
 
-# --- 5. إدارة المخزون (مقسّم إلى أقسام فرعية كالوكلاء) ---
+# --- 5. إدارة المخزون ---
 tab_inv_idx = 5 if st.session_state.role == "admin" else 4
 with tabs[tab_inv_idx]:
     if st.session_state.role == "admin":
