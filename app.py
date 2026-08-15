@@ -259,7 +259,8 @@ def generate_payment_pdf(
         pdf.set_font("Arial", "B", 12)
         
     pdf.set_text_color(0, 0, 0)
-    pdf.cell(0, 8, ar("سند قبض نقدي"), ln=True, align="C")
+    pdf.cell(0, 8, ar("معمل الرافدين للبرادات"), ln=True, align="C")
+    pdf.cell(0, 6, ar("سند قبض"), ln=True, align="C")
     pdf.ln(2)
     
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 10)
@@ -289,7 +290,7 @@ def generate_payment_pdf(
     
     pdf.ln(4)
     pdf.set_font("Amiri" if os.path.exists(font_path) else "Arial", "", 10)
-    pdf.cell(186, 6, ar("توقيع معمل الرافدين:"), ln=True, align="R")
+    pdf.cell(186, 6, ar("توقيع وختم القابض:"), ln=True, align="R")
     sign_box_y = pdf.get_y()
     pdf.rect(12, sign_box_y, 186, 22)
     return bytes(pdf.output())
@@ -433,6 +434,7 @@ if st.session_state.role == "admin":
         "🤝 الوكلاء",
         "🛒 البيع",
         "🛠️ الصيانة",
+        "🧱 بيع المواد الخام",
         "🏭 الإنتاج",
         "📦 المخزون",
         "👥 الحسابات",
@@ -443,6 +445,7 @@ else:
     tabs = st.tabs([
         "🛒 البيع",
         "🛠️ الصيانة",
+        "🧱 بيع المواد الخام",
         "🤝 الوكلاء",
         "🏭 الإنتاج",
         "📦 المخزون",
@@ -469,7 +472,7 @@ if st.session_state.role == "admin":
         st.dataframe(pd.DataFrame(fg_list), use_container_width=True)
 
 # --- إدارة الوكلاء والديون ---
-tab_ag_idx = 1 if st.session_state.role == "admin" else 2
+tab_ag_idx = 1 if st.session_state.role == "admin" else 3
 with tabs[tab_ag_idx]:
     st.header("🤝 إدارة الوكلاء والذمم")
     ag_sub1, ag_sub2, ag_sub3 = st.tabs(["➕ إضافة وكيل", "💵 سند قبض", "📜 كشف الحساب"])
@@ -712,13 +715,12 @@ with tabs[tab_sale_idx]:
                 use_container_width=True
             )
 
-# --- 3. تبويب الصيانة وبيع المواد الخام ---
-tab_maint_idx = 3 if st.session_state.role == "admin" else 1
-with tabs[tab_maint_idx]:
-    st.header("🛠️ الصيانة وبيع المواد الخام")
+# --- مشترك للقسمين: الصيانة وبيع المواد الخام ---
+def handle_maint_or_raw_sales(tab_title):
+    st.header(tab_title)
     st.write("إدارة طلبات الصيانة وبيع المواد الأولية بوضوح تام.")
     
-    m_buyer_cat = st.radio("تصنيف العميل:", ["زبون مباشر", "وكيل مسجل"], horizontal=True, key="maint_cat_radio")
+    m_buyer_cat = st.radio("تصنيف العميل:", ["زبون مباشر", "وكيل مسجل"], horizontal=True, key=f"maint_cat_radio_{tab_title}")
     m_agents_list = list(factory_data["agents"].keys())
     
     if m_buyer_cat == "وكيل مسجل":
@@ -727,29 +729,30 @@ with tabs[tab_maint_idx]:
             m_customer_name = ""
             m_sel_agent = None
         else:
-            m_sel_agent = st.selectbox("اختر الوكيل للصيانة/المواد:", m_agents_list, key="maint_agent_select")
+            m_sel_agent = st.selectbox("اختر الوكيل:", m_agents_list, key=f"maint_agent_select_{tab_title}")
             m_customer_name = m_sel_agent
     else:
-        m_customer_name = st.text_input("اسم الزبون للصيانة/المواد:", value="زبون نقدي", key="maint_direct_customer")
+        m_customer_name = st.text_input("اسم الزبون:", value="زبون نقدي", key=f"maint_direct_customer_{tab_title}")
         m_sel_agent = None
         
-    m_pay_sys = st.selectbox("طريقة السداد:", ["نقدي بالكامل", "بالأجل (على الذمة)", "بالتقساط"], key="maint_pay_sys")
+    m_pay_sys = st.selectbox("طريقة السداد:", ["نقدي بالكامل", "بالأجل (على الذمة)", "بالتقساط"], key=f"maint_pay_sys_{tab_title}")
     
     col_m1, col_m2 = st.columns(2)
     with col_m1:
-        m_date = st.date_input("تاريخ العمليات:", value=datetime.now(), key="maint_date_input")
+        m_date = st.date_input("تاريخ العمليات:", value=datetime.now(), key=f"maint_date_input_{tab_title}")
     with col_m2:
-        m_ex = st.number_input("سعر صرف الدولار (د.ع):", min_value=1.0, value=1500.0, step=25.0, key="maint_exchange_rate")
+        m_ex = st.number_input("سعر صرف الدولار (د.ع):", min_value=1.0, value=1500.0, step=25.0, key=f"maint_exchange_rate_{tab_title}")
         
     st.markdown("---")
     m_items_list = []
     m_total_usd = 0.0
     m_stock_shortage = False
     
-    st.subheader("🧱 اختيار المواد الخام للبيع")
     raw_inv = factory_data.get("inventory", {})
     raw_pr = factory_data.get("raw_prices", {})
     
+    # قسم بيع المواد الخام (يظهر في كلا التبويبين لكي يعمل بنظام الوصل الموحد أو المنفصل)
+    st.subheader("🧱 اختيار المواد الخام للبيع")
     for r_name, r_info in raw_inv.items():
         r_avail = r_info["qty"]
         r_unit = r_info["unit"]
@@ -760,9 +763,9 @@ with tabs[tab_maint_idx]:
             with rc1:
                 st.markdown(f"**{r_name}** | متوفر: `{r_avail} {r_unit}` | السعر: `${r_fixed_p}`")
             with rc2:
-                r_qty = st.number_input("الكمية:", min_value=0.0, max_value=float(r_avail), value=0.0, step=1.0, key=f"raw_q_{r_name}")
+                r_qty = st.number_input("الكمية:", min_value=0.0, max_value=float(r_avail), value=0.0, step=1.0, key=f"raw_q_{tab_title}_{r_name}")
             with rc3:
-                r_pr = st.number_input("السعر ($):", min_value=0.0, value=float(r_fixed_p), step=1.0, key=f"raw_p_{r_name}")
+                r_pr = st.number_input("السعر ($):", min_value=0.0, value=float(r_fixed_p), step=1.0, key=f"raw_p_{tab_title}_{r_name}")
             st.markdown("<div style='margin-bottom: 5px;'></div>", unsafe_allow_html=True)
             
         if r_qty > r_avail:
@@ -783,11 +786,11 @@ with tabs[tab_maint_idx]:
     st.subheader("🛠️ أجور الصيانة والخدمات")
     mc1, mc2, mc3 = st.columns([2, 1, 1])
     with mc1:
-        maint_desc = st.text_input("وصف الصيانة أو الخدمة:", value="إصلاح عطل فني", key="maint_desc_input")
+        maint_desc = st.text_input("وصف الصيانة أو الخدمة:", value="إصلاح عطل فني", key=f"maint_desc_input_{tab_title}")
     with mc2:
-        maint_cnt = st.number_input("العدد / الأجر:", min_value=0, value=0, step=1, key="maint_cnt_input")
+        maint_cnt = st.number_input("العدد / الأجر:", min_value=0, value=0, step=1, key=f"maint_cnt_input_{tab_title}")
     with mc3:
-        maint_p = st.number_input("التكلفة ($):", min_value=0.0, value=0.0, step=5.0, key="maint_price_input")
+        maint_p = st.number_input("التكلفة ($):", min_value=0.0, value=0.0, step=5.0, key=f"maint_price_input_{tab_title}")
         
     if maint_cnt > 0 and maint_p > 0:
         mt_tot = maint_cnt * maint_p
@@ -800,9 +803,9 @@ with tabs[tab_maint_idx]:
             "total_usd": mt_tot
         })
 
-    m_discount = st.number_input("قيمة الخصم ($):", min_value=0.0, value=0.0, step=5.0, key="m_disc")
+    m_discount = st.number_input("قيمة الخصم ($):", min_value=0.0, value=0.0, step=5.0, key=f"m_disc_{tab_title}")
     m_final_usd = max(0.0, m_total_usd - m_discount)
-    st.markdown(f"### 💰 إجمالي الصيانة والمواد بعد الخصم: `${m_final_usd:,.2f}` (`{m_final_usd * m_ex:,.0f}` د.ع)")
+    st.markdown(f"### 💰 الإجمالي بعد الخصم: `${m_final_usd:,.2f}` (`{m_final_usd * m_ex:,.0f}` د.ع)")
     
     m_paid = 0.0
     m_rem = 0.0
@@ -815,11 +818,11 @@ with tabs[tab_maint_idx]:
         m_rem = m_final_usd
         m_pay_desc = "أجل"
     else:
-        m_paid = st.number_input("المقدمة المدفوعة ($):", min_value=0.0, max_value=float(m_final_usd), value=0.0, step=10.0, key="maint_paid_input")
+        m_paid = st.number_input("المقدمة المدفوعة ($):", min_value=0.0, max_value=float(m_final_usd), value=0.0, step=10.0, key=f"maint_paid_input_{tab_title}")
         m_rem = m_final_usd - m_paid
         m_pay_desc = f"تقساط (مقدمة: ${m_paid})"
 
-    if st.button("🚀 إتمام عملية الصيانة وخصم المواد", type="primary", use_container_width=True, key="maint_submit_btn"):
+    if st.button(f"🚀 إتمام وتنفيذ ({tab_title})", type="primary", use_container_width=True, key=f"maint_submit_btn_{tab_title}"):
         if m_stock_shortage:
             st.error("❌ الكمية المطلوبة تتجاوز المخزون المتوفر!")
         elif not m_customer_name.strip():
@@ -842,10 +845,10 @@ with tabs[tab_maint_idx]:
                 factory_data["agents"][target_ag]["debt_usd"] = new_d
                 factory_data["agents"][target_ag]["transactions"].append({
                     "date": m_date.strftime("%Y-%m-%d"),
-                    "type": f"صيانة/مواد - {m_pay_sys}",
+                    "type": f"{tab_title} - {m_pay_sys}",
                     "amount_usd": m_rem,
                     "balance_usd": new_d,
-                    "note": f"قائمة صيانة #{m_inv_seq}"
+                    "note": f"قائمة #{m_inv_seq}"
                 })
                 
             factory_data["sales_history"].append({
@@ -856,7 +859,7 @@ with tabs[tab_maint_idx]:
                 "payment_type": m_pay_desc
             })
             save_factory_data(factory_data)
-            st.success("✅ تمت عملية الصيانة وإتمام المهمة وتوليد القائمة بنجاح!")
+            st.success(f"✅ تمت العملية بنجاح وتوليد القائمة برقم #{m_inv_seq}!")
             
             pdf_bytes = generate_new_account_statement_pdf(
                 customer_name=m_customer_name,
@@ -872,15 +875,25 @@ with tabs[tab_maint_idx]:
                 payment_method_str=m_pay_desc
             )
             st.download_button(
-                label="📥 تنزيل قائمة الصيانة (PDF)",
+                label="📥 تنزيل القائمة (PDF)",
                 data=pdf_bytes,
-                file_name=f"قائمة_صيانة_{m_inv_seq}_{m_customer_name}.pdf",
+                file_name=f"قائمة_{m_inv_seq}_{m_customer_name}.pdf",
                 mime="application/pdf",
                 use_container_width=True
             )
 
-# --- 4. تسجيل الإنتاج ---
-tab_prod_idx = 4 if st.session_state.role == "admin" else 3
+# --- 3. تبويب قسم الصيانة ---
+tab_maint_idx = 3 if st.session_state.role == "admin" else 1
+with tabs[tab_maint_idx]:
+    handle_maint_or_raw_sales("قسم الصيانة")
+
+# --- 4. تبويب بيع المواد الخام ---
+tab_raw_idx = 4 if st.session_state.role == "admin" else 2
+with tabs[tab_raw_idx]:
+    handle_maint_or_raw_sales("بيع المواد الخام")
+
+# --- تسجيل الإنتاج ---
+tab_prod_idx = 5 if st.session_state.role == "admin" else 3
 with tabs[tab_prod_idx]:
     st.header("🏭 تسجيل إنتاج براد جديد")
     models = list(factory_data["bom"].keys())
@@ -909,8 +922,8 @@ with tabs[tab_prod_idx]:
                     save_factory_data(factory_data)
                     st.success(f"✅ تم تأكيد الإنتاج بنجاح ({prod_qty}) من [{prod_model}] وخصم المواد الخام تلقائياً!")
 
-# --- 5. إدارة المخزون ---
-tab_inv_idx = 5 if st.session_state.role == "admin" else 4
+# --- إدارة المخزون ---
+tab_inv_idx = 6 if st.session_state.role == "admin" else 4
 with tabs[tab_inv_idx]:
     if st.session_state.role == "admin":
         st.header("📦 إدارة المخزون")
@@ -988,7 +1001,7 @@ with tabs[tab_inv_idx]:
 
 # --- الحسابات والموظفين (مدير فقط) ---
 if st.session_state.role == "admin":
-    with tabs[6]:
+    with tabs[7]:
         st.header("👥 إدارة الحسابات والموظفين")
         with st.form("new_user_form"):
             u_name = st.text_input("اسم المستخدم:", key="new_user_name_input")
@@ -1007,7 +1020,7 @@ if st.session_state.role == "admin":
                         st.success("✅ تم إنشاء حساب الموظف بنجاح!")
 
 # --- إعدادات الحساب الشخصي ---
-tab_set_idx = 7 if st.session_state.role == "admin" else 5
+tab_set_idx = 8 if st.session_state.role == "admin" else 5
 with tabs[tab_set_idx]:
     st.header("⚙️ إعدادات الحساب الشخصي")
     current_username = st.session_state.username
@@ -1036,7 +1049,7 @@ with tabs[tab_set_idx]:
 
 # --- فورمات كامل للمدير ---
 if st.session_state.role == "admin":
-    with tabs[8]:
+    with tabs[9]:
         st.header("⚠️ فورمات كامل للنظام")
         st.error("تحذير صارم: سيؤدي هذا لتصفير وحذف جميع البيانات نهائياً!")
         with st.form("format_form"):
