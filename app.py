@@ -231,7 +231,7 @@ def generate_new_account_statement_pdf(
     pdf.cell(186, 6, ar(total_in_words), border=1, align="R", fill=True, ln=True)
     
     pdf.set_fill_color(255, 255, 255)
-    pdf.cell(93, 6, ar(f"المبلغ المدفوع: ${paid_amount_usd:,.2f} / {pd_iqd:,} د.ع"), border=1, align="R", fill=True)
+    pdf.cell(93, 6, ar(f"المبلغ المدفوع: ${paid_amount_usd:,.2f} / {pd_iqd:,} د.ع"), border=1, align="R", fill=True, ln=True)
     pdf.cell(93, 6, ar(f"المبلغ الإجمالي: ${grand_total_usd:,.2f} / {gt_iqd:,} د.ع"), border=1, align="R", fill=True, ln=True)
     pdf.set_fill_color(240, 245, 250)
     pdf.cell(186, 6, ar(f"المبلغ المتبقي (الذمة المالية): ${remaining_amount_usd:,.2f} / {rm_iqd:,} د.ع"), border=1, align="R", fill=True, ln=True)
@@ -294,10 +294,10 @@ def generate_payment_pdf(
     pdf.rect(12, sign_box_y, 186, 22)
     return bytes(pdf.output())
 
-# --- 3. إعداد الصفحة وتطبيق تنسيقات CSS احترافية ---
+# --- 3. إعداد الصفحة وتصميم الوضع الداكن بلمسات فقاعات الماء (Aqua Dark Theme) ---
 st.set_page_config(
     page_title="معمل الرافدين للبرادات",
-    page_icon="❄️",
+    page_icon="💧",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -306,34 +306,82 @@ st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap');
     
+    /* خلفية عامة داكنة نقية */
     html, body, [class*="css"] {
         font-family: 'Cairo', sans-serif;
         direction: rtl;
         text-align: right;
+        background-color: #0b1329;
+        color: #e2e8f0;
     }
     
+    /* تأثير فقاعات الماء والعناصر الزجاجية الداكنة */
+    .stApp {
+        background: radial-gradient(circle at 20% 20%, #112244 0%, #0b1329 60%, #070a14 100%);
+    }
+    
+    /* الحاويات والكروت بتصميم زجاجي عائم */
+    div.stExpander, div.stTabs, div[data-testid="stForm"], div[data-testid="stVerticalBlock"] > div {
+        background-color: rgba(17, 34, 68, 0.6) !important;
+        border-radius: 16px !important;
+        border: 1px solid rgba(56, 189, 248, 0.2) !important;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        backdrop-filter: blur(8px);
+    }
+    
+    /* حقول الإدخال بتصميم فقاعات الماء المضيئة */
+    input, select, textarea, div[data-baseweb="select"] > div {
+        background-color: rgba(7, 18, 38, 0.8) !important;
+        color: #38bdf8 !important;
+        border-radius: 12px !important;
+        border: 1px solid rgba(56, 189, 248, 0.4) !important;
+    }
+    
+    input:focus, select:focus {
+        border-color: #38bdf8 !important;
+        box-shadow: 0 0 15px rgba(56, 189, 248, 0.4) !important;
+    }
+    
+    /* الأزرار بلمسات مائية ساطعة */
     .stButton>button {
+        background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
+        color: #ffffff;
         border-radius: 12px;
-        font-weight: 600;
+        font-weight: 700;
+        border: none;
         transition: all 0.3s ease;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        box-shadow: 0 4px 15px rgba(56, 189, 248, 0.3);
     }
     
     .stButton>button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+        box-shadow: 0 6px 20px rgba(56, 189, 248, 0.6);
+        background: linear-gradient(135deg, #0369a1 0%, #0ea5e9 100%);
     }
     
+    /* الميتريكس والأرقام */
     div[data-testid="stMetricValue"] {
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: #0284c7;
+        font-size: 2rem;
+        font-weight: 900;
+        color: #38bdf8;
+        text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
     }
     
-    div.stExpander, div.stTabs {
-        background-color: #ffffff;
-        border-radius: 12px;
-        border: 1px solid #e2e8f0;
+    div[data-testid="stMetricLabel"] {
+        color: #94a3b8;
+        font-weight: 600;
+    }
+    
+    /* النصوص والعناوين */
+    h1, h2, h3, h4 {
+        color: #f1f5f9 !important;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+    
+    /* الجداول */
+    dataframe, table {
+        background-color: rgba(11, 19, 41, 0.9) !important;
+        color: #cbd5e1 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -348,8 +396,8 @@ if "authenticated" not in st.session_state:
 
 # --- شاشة تسجيل الدخول ---
 if not st.session_state.authenticated:
-    st.markdown("<h2 style='text-align: center; color: #0284c7;'>❄️ نظام إدارة معمل الرافدين</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #64748b;'>يرجى تسجيل الدخول للمتابعة</p>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #38bdf8;'>💧 نظام إدارة معمل الرافدين</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #94a3b8;'>يرجى تسجيل الدخول للمتابعة</p>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -372,14 +420,14 @@ if not st.session_state.authenticated:
     st.stop()
 
 # --- الواجهة الرئيسية والشريط العلوي ---
-st.markdown(f"<h1 style='text-align: center; color: #0f172a;'>❄️ {factory_data['info']['factory_name']}</h1>", unsafe_allow_html=True)
+st.markdown(f"<h1 style='text-align: center; color: #38bdf8;'>💧 {factory_data['info']['factory_name']}</h1>", unsafe_allow_html=True)
 
 col_u1, col_u2 = st.columns([4, 1])
 with col_u1:
     role_badge = "👑 مدير" if st.session_state.role == "admin" else "👷 موظف"
     st.markdown(f"**المستخدم الحالي:** `{st.session_state.user_fullname}` | **الصلاحية:** {role_badge}")
 with col_u2:
-    if st.button("🚪 تسجيل الخروج", use_container_width=True):
+    if st.button("🚪 خروج", use_container_width=True):
         st.session_state.authenticated = False
         st.session_state.username = None
         st.rerun()
